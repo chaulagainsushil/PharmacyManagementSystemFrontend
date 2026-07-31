@@ -3,7 +3,7 @@
 import { useEffect, useState, useCallback } from 'react';
 import { useForm } from 'react-hook-form';
 import toast from 'react-hot-toast';
-import { Plus, Pencil, Trash2, Search, Pill } from 'lucide-react';
+import { Plus, Pencil, Trash2, Search, Pill, ListPlus, CheckCircle, XCircle } from 'lucide-react';
 import { AppLayout } from '@/components/layout/AppLayout';
 import { Modal } from '@/components/ui/Modal';
 import { ConfirmDialog } from '@/components/ui/ConfirmDialog';
@@ -13,7 +13,7 @@ import { PageLoader, LoadingSpinner } from '@/components/ui/LoadingSpinner';
 import { medicineService } from '@/services/medicineService';
 import { categoryService } from '@/services/categoryService';
 import { manufacturerService } from '@/services/manufacturerService';
-import type { Medicine, CreateMedicineDto, Category, Manufacturer } from '@/types';
+import type { Medicine, CreateMedicineDto, Category, Manufacturer, BulkCreateMedicineResult, BulkCreateMedicineItemResult } from '@/types';
 
 export default function MedicinesPage() {
   const [medicines, setMedicines] = useState<Medicine[]>([]);
@@ -27,6 +27,19 @@ export default function MedicinesPage() {
   const [saving, setSaving] = useState(false);
   const [deleting, setDeleting] = useState(false);
 
+  // ── Bulk add state ──────────────────────────────────────────────────────────
+  type BulkRow = CreateMedicineDto & { _id: string };
+  const newRow = (): BulkRow => ({
+    _id: Math.random().toString(36).slice(2),
+    name: '', genericName: '', categoryId: undefined, manufacturerId: undefined,
+    tabletsPerStrip: 1, stripPrice: 0, tabletPrice: 0,
+    reorderLevel: 10, requiresPrescription: false, isActive: true,
+  });
+  const [bulkOpen, setBulkOpen] = useState(false);
+  const [bulkRows, setBulkRows] = useState<BulkRow[]>([newRow()]);
+  const [bulkSaving, setBulkSaving] = useState(false);
+  const [bulkResults, setBulkResults] = useState<BulkCreateMedicineItemResult[] | null>(null);
+
   const { register, handleSubmit, reset, formState: { errors } } = useForm<CreateMedicineDto>();
 
   const load = useCallback(async () => {
@@ -39,7 +52,28 @@ export default function MedicinesPage() {
   useEffect(() => { load().finally(() => setLoading(false)); }, [load]);
 
   const openCreate = () => { reset({ tabletsPerStrip: 1, reorderLevel: 10, isActive: true, requiresPrescription: false }); setEditing(null); setModalOpen(true); };
-  const openEdit = (m: Medicine) => { reset({ ...m, genericName: m.genericName ?? undefined, categoryId: m.categoryId ?? undefined, manufacturerId: m.manufacturerId ?? undefined }); setEditing(m); setModalOpen(true); };
+  const openEdit = async (m: Medicine) => {
+    setEditing(m);
+    setModalOpen(true);
+    try {
+      const full = await medicineService.getById(m.medicineId);
+      reset({
+        name: full.name,
+        genericName: full.genericName ?? undefined,
+        categoryId: full.categoryId ?? undefined,
+        manufacturerId: full.manufacturerId ?? undefined,
+        tabletsPerStrip: full.tabletsPerStrip,
+        stripPrice: full.stripPrice,
+        tabletPrice: full.tabletPrice,
+        reorderLevel: full.reorderLevel,
+        requiresPrescription: full.requiresPrescription,
+        isActive: full.isActive,
+      });
+    } catch {
+      toast.error('Failed to load medicine details');
+      setModalOpen(false);
+    }
+  };
 
   const onSubmit = async (data: CreateMedicineDto) => {
     setSaving(true);
@@ -61,6 +95,43 @@ export default function MedicinesPage() {
     finally { setDeleting(false); }
   };
 
+  const openBulk = () => { setBulkRows([newRow()]); setBulkResults(null); setBulkOpen(true); };
+  const closeBulk = () => { setBulkOpen(false); setBulkResults(null); };
+
+  const updateRow = (id: string, field: keyof CreateMedicineDto, value: unknown) =>
+    setBulkRows(rows => rows.map(r => r._id === id ? { ...r, [field]: value } : r));
+
+  const addRow = () => setBulkRows(rows => [...rows, newRow()]);
+  const removeRow = (id: string) => setBulkRows(rows => rows.filter(r => r._id !== id));
+
+  const submitBulk = async () => {
+    const payload = bulkRows.map(({ _id, ...rest }) => ({
+      ...rest,
+      categoryId: rest.categoryId || null,
+      manufacturerId: rest.manufacturerId || null,
+      tabletsPerStrip: Number(rest.tabletsPerStrip),
+      stripPrice: Number(rest.stripPrice),
+      tabletPrice: Number(rest.tabletPrice),
+      reorderLevel: Number(rest.reorderLevel),
+    }));
+    setBulkSaving(true);
+    try {
+      const result = await medicineService.bulkCreate(payload);
+      setBulkResults(result.results);
+      if (result.totalCreated > 0) {
+        toast.success(`${result.totalCreated} medicine(s) created`);
+        await load();
+      }
+      if (result.totalFailed > 0) {
+        toast.error(`${result.totalFailed} row(s) failed`);
+      }
+    } catch (e: any) {
+      toast.error(e.response?.data?.message ?? 'Bulk create failed');
+    } finally {
+      setBulkSaving(false);
+    }
+  };
+
   const filtered = medicines.filter(m =>
     m.name.toLowerCase().includes(search.toLowerCase()) ||
     (m.genericName ?? '').toLowerCase().includes(search.toLowerCase())
@@ -77,9 +148,14 @@ export default function MedicinesPage() {
           <input value={search} onChange={e => setSearch(e.target.value)} placeholder="Search medicines…"
             className="w-full rounded-xl border border-gray-200 bg-white py-2 pl-9 pr-4 text-sm outline-none focus:border-blue-500 focus:ring-2 focus:ring-blue-100" />
         </div>
-        <button onClick={openCreate} className="inline-flex items-center gap-2 rounded-xl bg-indigo-600 px-4 py-2 text-sm font-semibold text-white hover:bg-indigo-700 transition-colors shadow-sm">
-          <Plus className="h-4 w-4" /> Add Medicine
-        </button>
+        <div className="flex items-center gap-2">
+          <button onClick={openCreate} className="inline-flex items-center gap-2 rounded-xl bg-indigo-600 px-4 py-2 text-sm font-semibold text-white hover:bg-indigo-700 transition-colors shadow-sm">
+            <Plus className="h-4 w-4" /> Add Medicine
+          </button>
+          <button onClick={openBulk} className="inline-flex items-center gap-2 rounded-xl bg-emerald-600 px-4 py-2 text-sm font-semibold text-white hover:bg-emerald-700 transition-colors shadow-sm">
+            <ListPlus className="h-4 w-4" /> Add Multiple
+          </button>
+        </div>
       </div>
 
       {/* Table */}
@@ -152,7 +228,6 @@ export default function MedicinesPage() {
             {manufacturers.map(m => <option key={m.manufacturerId} value={m.manufacturerId}>{m.name}</option>)}
           </SelectField>
           <FormField label="Tablets per Strip *" type="number" min={1} error={errors.tabletsPerStrip?.message} {...register('tabletsPerStrip', { required: true, min: 1 })} />
-          <FormField label="Reorder Level *" type="number" min={0} {...register('reorderLevel', { required: true })} />
           <FormField label="Strip Price (Rs) *" type="number" step="0.01" min={0} error={errors.stripPrice?.message} {...register('stripPrice', { required: true })} />
           <FormField label="Tablet Price (Rs) *" type="number" step="0.01" min={0} error={errors.tabletPrice?.message} {...register('tabletPrice', { required: true })} />
           <div className="col-span-2 flex gap-6">
@@ -177,6 +252,156 @@ export default function MedicinesPage() {
 
       <ConfirmDialog open={!!deleteTarget} title="Delete Medicine" message={`Delete "${deleteTarget?.name}"? This cannot be undone.`}
         onConfirm={handleDelete} onCancel={() => setDeleteTarget(null)} loading={deleting} />
+
+      {/* ── Bulk Add Modal ──────────────────────────────────────────────────── */}
+      <Modal open={bulkOpen} onClose={closeBulk} title="Add Multiple Medicines" size="xl">
+        {bulkResults ? (
+          /* Results view */
+          <div className="space-y-3">
+            <p className="text-sm text-slate-500">
+              <span className="font-semibold text-emerald-600">{bulkResults.filter(r => r.success).length} created</span>
+              {' · '}
+              <span className="font-semibold text-red-500">{bulkResults.filter(r => !r.success).length} failed</span>
+            </p>
+            <div className="divide-y divide-slate-100 rounded-xl border border-slate-200 overflow-hidden">
+              {bulkResults.map((r, i) => (
+                <div key={i} className={`flex items-start gap-3 px-4 py-3 text-sm ${r.success ? 'bg-emerald-50' : 'bg-red-50'}`}>
+                  {r.success
+                    ? <CheckCircle className="mt-0.5 h-4 w-4 flex-shrink-0 text-emerald-500" />
+                    : <XCircle className="mt-0.5 h-4 w-4 flex-shrink-0 text-red-500" />}
+                  <div>
+                    <p className="font-medium text-slate-800">{r.data?.name ?? bulkRows[i]?.name ?? `Row ${i + 1}`}</p>
+                    <p className={`text-xs ${r.success ? 'text-emerald-700' : 'text-red-600'}`}>{r.message}</p>
+                  </div>
+                </div>
+              ))}
+            </div>
+            <div className="flex justify-end gap-3 pt-2">
+              <button onClick={closeBulk} className="rounded-lg bg-blue-600 px-5 py-2 text-sm font-semibold text-white hover:bg-blue-700">Done</button>
+            </div>
+          </div>
+        ) : (
+          /* Input view */
+          <div className="space-y-4">
+            <div className="overflow-x-auto rounded-xl border border-slate-200">
+              <table className="w-full text-sm">
+                <thead className="bg-slate-50 text-xs font-semibold uppercase tracking-wide text-slate-500">
+                  <tr>
+                    <th className="px-3 py-2 text-left">#</th>
+                    <th className="px-3 py-2 text-left">Name *</th>
+                    <th className="px-3 py-2 text-left">Generic Name</th>
+                    <th className="px-3 py-2 text-left">Category</th>
+                    <th className="px-3 py-2 text-left">Manufacturer</th>
+                    <th className="px-3 py-2 text-left">Tabs/Strip</th>
+                    <th className="px-3 py-2 text-left">Strip Price</th>
+                    <th className="px-3 py-2 text-left">Tablet Price</th>
+                    <th className="px-3 py-2 text-left">Active</th>
+                    <th className="px-3 py-2 text-left">Rx</th>
+                    <th className="px-3 py-2"></th>
+                  </tr>
+                </thead>
+                <tbody className="divide-y divide-slate-100">
+                  {bulkRows.map((row, idx) => (
+                    <tr key={row._id} className="hover:bg-slate-50">
+                      <td className="px-3 py-2 text-slate-400">{idx + 1}</td>
+                      <td className="px-3 py-2">
+                        <input
+                          value={row.name}
+                          onChange={e => updateRow(row._id, 'name', e.target.value)}
+                          placeholder="Paracetamol 500mg"
+                          className="w-40 rounded-lg border border-gray-200 px-2 py-1.5 text-sm outline-none focus:border-blue-400 focus:ring-1 focus:ring-blue-100"
+                        />
+                      </td>
+                      <td className="px-3 py-2">
+                        <input
+                          value={row.genericName ?? ''}
+                          onChange={e => updateRow(row._id, 'genericName', e.target.value)}
+                          placeholder="Generic"
+                          className="w-32 rounded-lg border border-gray-200 px-2 py-1.5 text-sm outline-none focus:border-blue-400 focus:ring-1 focus:ring-blue-100"
+                        />
+                      </td>
+                      <td className="px-3 py-2">
+                        <select
+                          value={row.categoryId ?? ''}
+                          onChange={e => updateRow(row._id, 'categoryId', e.target.value ? Number(e.target.value) : undefined)}
+                          className="w-32 rounded-lg border border-gray-200 px-2 py-1.5 text-sm outline-none focus:border-blue-400"
+                        >
+                          <option value="">— None —</option>
+                          {categories.map(c => <option key={c.categoryId} value={c.categoryId}>{c.categoryName}</option>)}
+                        </select>
+                      </td>
+                      <td className="px-3 py-2">
+                        <select
+                          value={row.manufacturerId ?? ''}
+                          onChange={e => updateRow(row._id, 'manufacturerId', e.target.value ? Number(e.target.value) : undefined)}
+                          className="w-32 rounded-lg border border-gray-200 px-2 py-1.5 text-sm outline-none focus:border-blue-400"
+                        >
+                          <option value="">— None —</option>
+                          {manufacturers.map(m => <option key={m.manufacturerId} value={m.manufacturerId}>{m.name}</option>)}
+                        </select>
+                      </td>
+                      <td className="px-3 py-2">
+                        <input
+                          type="number" min={1} value={row.tabletsPerStrip}
+                          onChange={e => updateRow(row._id, 'tabletsPerStrip', Number(e.target.value))}
+                          className="w-16 rounded-lg border border-gray-200 px-2 py-1.5 text-sm outline-none focus:border-blue-400"
+                        />
+                      </td>
+                      <td className="px-3 py-2">
+                        <input
+                          type="number" min={0} step="0.01" value={row.stripPrice}
+                          onChange={e => updateRow(row._id, 'stripPrice', Number(e.target.value))}
+                          className="w-20 rounded-lg border border-gray-200 px-2 py-1.5 text-sm outline-none focus:border-blue-400"
+                        />
+                      </td>
+                      <td className="px-3 py-2">
+                        <input
+                          type="number" min={0} step="0.01" value={row.tabletPrice}
+                          onChange={e => updateRow(row._id, 'tabletPrice', Number(e.target.value))}
+                          className="w-20 rounded-lg border border-gray-200 px-2 py-1.5 text-sm outline-none focus:border-blue-400"
+                        />
+                      </td>
+                      <td className="px-3 py-2 text-center">
+                        <input
+                          type="checkbox" checked={row.isActive}
+                          onChange={e => updateRow(row._id, 'isActive', e.target.checked)}
+                          className="h-4 w-4 rounded text-blue-600"
+                        />
+                      </td>
+                      <td className="px-3 py-2 text-center">
+                        <input
+                          type="checkbox" checked={row.requiresPrescription}
+                          onChange={e => updateRow(row._id, 'requiresPrescription', e.target.checked)}
+                          className="h-4 w-4 rounded text-purple-600"
+                        />
+                      </td>
+                      <td className="px-3 py-2">
+                        {bulkRows.length > 1 && (
+                          <button onClick={() => removeRow(row._id)} className="rounded p-1 text-gray-400 hover:bg-red-50 hover:text-red-500 transition-colors">
+                            <Trash2 className="h-4 w-4" />
+                          </button>
+                        )}
+                      </td>
+                    </tr>
+                  ))}
+                </tbody>
+              </table>
+            </div>
+
+            <button onClick={addRow} className="inline-flex items-center gap-1.5 rounded-lg border border-dashed border-slate-300 px-4 py-2 text-sm text-slate-500 hover:border-blue-400 hover:text-blue-600 transition-colors">
+              <Plus className="h-4 w-4" /> Add Row
+            </button>
+
+            <div className="flex justify-end gap-3 pt-1">
+              <button onClick={closeBulk} className="rounded-lg border border-gray-200 px-4 py-2 text-sm font-medium hover:bg-gray-50">Cancel</button>
+              <button onClick={submitBulk} disabled={bulkSaving} className="inline-flex items-center gap-2 rounded-lg bg-emerald-600 px-5 py-2 text-sm font-semibold text-white hover:bg-emerald-700 disabled:opacity-60">
+                {bulkSaving && <LoadingSpinner className="h-4 w-4 text-white" />}
+                Create {bulkRows.length} Medicine{bulkRows.length !== 1 ? 's' : ''}
+              </button>
+            </div>
+          </div>
+        )}
+      </Modal>
     </AppLayout>
   );
 }

@@ -92,6 +92,20 @@ export interface CreateMedicineDto {
   isActive: boolean;
 }
 
+export interface BulkCreateMedicineItemResult {
+  index: number;
+  success: boolean;
+  message: string;
+  data?: Medicine;
+}
+
+export interface BulkCreateMedicineResult {
+  totalRequested: number;
+  totalCreated: number;
+  totalFailed: number;
+  results: BulkCreateMedicineItemResult[];
+}
+
 // ── Medicine Batch ────────────────────────────────────────────────────────────
 export interface MedicineBatch {
   batchId: number;
