@@ -101,7 +101,8 @@ export default function SalesHistoryPage() {
                       <span><span className="font-medium">By:</span> {sale.pharmacistName}</span>
                     </div>
 
-                    <table className="w-full text-sm">
+                    <div className="overflow-x-auto">
+                    <table className="w-full text-sm min-w-[480px]">
                       <thead>
                         <tr className="text-left text-xs font-semibold uppercase text-gray-400">
                           <th className="pb-2">Medicine</th>
@@ -134,6 +135,7 @@ export default function SalesHistoryPage() {
                         ))}
                       </tbody>
                     </table>
+                    </div>
 
                     <div className="mt-3 flex justify-end gap-6 text-sm border-t border-gray-200 pt-3">
                       <span className="text-gray-500">Subtotal: Rs {Number(sale.subtotal).toFixed(2)}</span>

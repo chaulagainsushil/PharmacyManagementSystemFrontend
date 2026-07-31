@@ -101,8 +101,38 @@ export default function SuppliersPage() {
         </button>
       </div>
 
-      {/* Table */}
-      <div className="rounded-2xl border border-slate-200 bg-white shadow-sm overflow-hidden">
+      {/* Mobile cards */}
+      <div className="sm:hidden space-y-3">
+        {filtered.length === 0 && (
+          <div className="rounded-2xl border border-gray-100 bg-white py-12 text-center text-gray-400">
+            <Truck className="mx-auto mb-2 h-8 w-8 text-gray-200" />No suppliers found
+          </div>
+        )}
+        {filtered.map(s => (
+          <div key={s.supplierId} className="rounded-2xl border border-gray-100 bg-white p-4 shadow-sm">
+            <div className="flex items-center justify-between">
+              <div className="flex items-center gap-3">
+                <div className="flex h-9 w-9 items-center justify-center rounded-xl bg-orange-50 flex-shrink-0">
+                  <Truck className="h-4 w-4 text-orange-500" />
+                </div>
+                <p className="font-semibold text-gray-900">{s.name}</p>
+              </div>
+              <div className="flex gap-1">
+                <button onClick={() => openEdit(s)} className="rounded-lg p-1.5 text-gray-400 hover:bg-blue-50 hover:text-blue-600"><Pencil className="h-4 w-4" /></button>
+                <button onClick={() => setDeleteTarget(s)} className="rounded-lg p-1.5 text-gray-400 hover:bg-red-50 hover:text-red-600"><Trash2 className="h-4 w-4" /></button>
+              </div>
+            </div>
+            <div className="mt-3 space-y-1 text-xs text-gray-500">
+              {s.phone && <div className="flex items-center gap-1.5"><Phone className="h-3.5 w-3.5" />{s.phone}</div>}
+              {s.address && <div className="flex items-center gap-1.5"><MapPin className="h-3.5 w-3.5" />{s.address}</div>}
+              <div><span className="font-medium text-gray-700">Batches:</span> {s.batchCount ?? '—'}</div>
+            </div>
+          </div>
+        ))}
+      </div>
+
+      {/* Desktop table */}
+      <div className="hidden sm:block rounded-2xl border border-slate-200 bg-white shadow-sm overflow-hidden">
         <div className="overflow-x-auto">
           <table className="w-full text-sm">
             <thead>
@@ -118,8 +148,7 @@ export default function SuppliersPage() {
               {filtered.length === 0 && (
                 <tr>
                   <td colSpan={5} className="px-6 py-12 text-center text-gray-400">
-                    <Truck className="mx-auto mb-2 h-8 w-8 text-gray-200" />
-                    No suppliers found
+                    <Truck className="mx-auto mb-2 h-8 w-8 text-gray-200" />No suppliers found
                   </td>
                 </tr>
               )}
@@ -136,38 +165,22 @@ export default function SuppliersPage() {
                   <td className="px-6 py-3">
                     {s.phone ? (
                       <span className="flex items-center gap-1.5 text-gray-600">
-                        <Phone className="h-3.5 w-3.5 text-gray-400" />
-                        {s.phone}
+                        <Phone className="h-3.5 w-3.5 text-gray-400" />{s.phone}
                       </span>
-                    ) : (
-                      <span className="text-gray-400">—</span>
-                    )}
+                    ) : <span className="text-gray-400">—</span>}
                   </td>
                   <td className="px-6 py-3">
                     {s.address ? (
                       <span className="flex items-center gap-1.5 text-gray-500">
-                        <MapPin className="h-3.5 w-3.5 text-gray-400 flex-shrink-0" />
-                        {s.address}
+                        <MapPin className="h-3.5 w-3.5 text-gray-400 flex-shrink-0" />{s.address}
                       </span>
-                    ) : (
-                      <span className="text-gray-400">—</span>
-                    )}
+                    ) : <span className="text-gray-400">—</span>}
                   </td>
                   <td className="px-6 py-3 font-semibold text-gray-900">{s.batchCount ?? '—'}</td>
                   <td className="px-6 py-3">
                     <div className="flex justify-end gap-1">
-                      <button
-                        onClick={() => openEdit(s)}
-                        className="rounded-lg p-1.5 text-gray-400 hover:bg-blue-50 hover:text-blue-600 transition-colors"
-                      >
-                        <Pencil className="h-4 w-4" />
-                      </button>
-                      <button
-                        onClick={() => setDeleteTarget(s)}
-                        className="rounded-lg p-1.5 text-gray-400 hover:bg-red-50 hover:text-red-600 transition-colors"
-                      >
-                        <Trash2 className="h-4 w-4" />
-                      </button>
+                      <button onClick={() => openEdit(s)} className="rounded-lg p-1.5 text-gray-400 hover:bg-blue-50 hover:text-blue-600 transition-colors"><Pencil className="h-4 w-4" /></button>
+                      <button onClick={() => setDeleteTarget(s)} className="rounded-lg p-1.5 text-gray-400 hover:bg-red-50 hover:text-red-600 transition-colors"><Trash2 className="h-4 w-4" /></button>
                     </div>
                   </td>
                 </tr>

@@ -118,7 +118,49 @@ export default function BatchesPage() {
         </button>
       </div>
 
-      <div className="rounded-2xl border border-slate-200 bg-white shadow-sm overflow-hidden">
+      {/* Mobile cards */}
+      <div className="sm:hidden space-y-3">
+        {filtered.length === 0 && (
+          <div className="rounded-2xl border border-gray-100 bg-white py-12 text-center text-gray-400">
+            <Package className="mx-auto mb-2 h-8 w-8 text-gray-200" />No batches found
+          </div>
+        )}
+        {filtered.map(b => {
+          const days = daysUntil(b.expiryDate);
+          return (
+            <div key={b.batchId} className="rounded-2xl border border-gray-100 bg-white p-4 shadow-sm">
+              <div className="flex items-start justify-between">
+                <div>
+                  <p className="font-semibold text-gray-900">{b.medicineName}</p>
+                  <p className="text-xs text-gray-500">Batch: {b.batchNumber}</p>
+                </div>
+                <div className="flex gap-1">
+                  <button onClick={() => openEdit(b)} className="rounded-lg p-1.5 text-gray-400 hover:bg-blue-50 hover:text-blue-600"><Pencil className="h-4 w-4" /></button>
+                  <button onClick={() => setDeleteTarget(b)} className="rounded-lg p-1.5 text-gray-400 hover:bg-red-50 hover:text-red-600"><Trash2 className="h-4 w-4" /></button>
+                </div>
+              </div>
+              <div className="mt-3 grid grid-cols-2 gap-2 text-xs text-gray-500">
+                <div><span className="font-medium text-gray-700">Supplier:</span> {b.supplierName ?? '—'}</div>
+                <div><span className="font-medium text-gray-700">Qty:</span> {b.quantityInTablets.toLocaleString()} tabs</div>
+                <div><span className="font-medium text-gray-700">Price:</span> Rs {Number(b.purchasePricePerTablet).toFixed(2)}/tab</div>
+                <div className="flex items-center gap-1.5">
+                  <span className="font-medium text-gray-700">Expiry:</span>
+                  {format(new Date(b.expiryDate), 'dd MMM yyyy')}
+                </div>
+              </div>
+              <div className="mt-2">
+                {b.isExpired ? <Badge variant="red">Expired</Badge>
+                  : days <= 30 ? <Badge variant="red">{days}d left</Badge>
+                  : days <= 90 ? <Badge variant="yellow">{days}d left</Badge>
+                  : <Badge variant="green">Valid</Badge>}
+              </div>
+            </div>
+          );
+        })}
+      </div>
+
+      {/* Desktop table */}
+      <div className="hidden sm:block rounded-2xl border border-slate-200 bg-white shadow-sm overflow-hidden">
         <div className="overflow-x-auto">
           <table className="w-full text-sm">
             <thead>
@@ -150,8 +192,7 @@ export default function BatchesPage() {
                     <td className="px-6 py-3 text-gray-600">Rs {Number(b.purchasePricePerTablet).toFixed(2)}/tab</td>
                     <td className="px-6 py-3">
                       <p className="text-gray-700">{format(new Date(b.expiryDate), 'dd MMM yyyy')}</p>
-                      {b.isExpired
-                        ? <Badge variant="red">Expired</Badge>
+                      {b.isExpired ? <Badge variant="red">Expired</Badge>
                         : days <= 30 ? <Badge variant="red">{days}d left</Badge>
                         : days <= 90 ? <Badge variant="yellow">{days}d left</Badge>
                         : <Badge variant="green">Valid</Badge>}

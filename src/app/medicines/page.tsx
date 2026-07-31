@@ -284,8 +284,46 @@ export default function MedicinesPage() {
         </div>
       </div>
 
+      {/* Mobile cards */}
+      <div className="sm:hidden space-y-3">
+        {filtered.length === 0 && (
+          <div className="rounded-2xl border border-gray-100 bg-white py-12 text-center text-gray-400">
+            <Pill className="mx-auto mb-2 h-8 w-8 text-gray-200" />No medicines found
+          </div>
+        )}
+        {filtered.map(m => (
+          <div key={m.medicineId} className="rounded-2xl border border-gray-100 bg-white p-4 shadow-sm">
+            <div className="flex items-start justify-between">
+              <div>
+                <p className="font-semibold text-gray-900">{m.name}</p>
+                <p className="text-xs text-gray-500">{m.genericName ?? '—'}</p>
+              </div>
+              <div className="flex gap-1">
+                <button onClick={() => openEdit(m)} className="rounded-lg p-1.5 text-gray-400 hover:bg-blue-50 hover:text-blue-600"><Pencil className="h-4 w-4" /></button>
+                <button onClick={() => setDeleteTarget(m)} className="rounded-lg p-1.5 text-gray-400 hover:bg-red-50 hover:text-red-600"><Trash2 className="h-4 w-4" /></button>
+              </div>
+            </div>
+            <div className="mt-3 grid grid-cols-2 gap-2 text-xs text-gray-500">
+              <div><span className="font-medium text-gray-700">Category:</span> {m.categoryName ?? '—'}</div>
+              <div>
+                <span className="font-medium text-gray-700">Stock: </span>
+                <span className={m.totalStockInTablets <= m.reorderLevel ? 'font-bold text-red-600' : ''}>
+                  {m.totalStockInTablets.toLocaleString()} tabs
+                </span>
+              </div>
+              <div><span className="font-medium text-gray-700">Strip:</span> Rs {Number(m.stripPrice).toFixed(2)}</div>
+              <div><span className="font-medium text-gray-700">Tablet:</span> Rs {Number(m.tabletPrice).toFixed(2)}</div>
+            </div>
+            <div className="mt-2 flex gap-1.5">
+              <Badge variant={m.isActive ? 'green' : 'gray'}>{m.isActive ? 'Active' : 'Inactive'}</Badge>
+              {m.requiresPrescription && <Badge variant="purple">Rx</Badge>}
+            </div>
+          </div>
+        ))}
+      </div>
+
       {/* Medicines Table */}
-      <div className="rounded-2xl border border-slate-200 bg-white shadow-sm overflow-hidden">
+      <div className="hidden sm:block rounded-2xl border border-slate-200 bg-white shadow-sm overflow-hidden">
         <div className="overflow-x-auto">
           <table className="w-full text-sm">
             <thead>

@@ -74,7 +74,41 @@ export default function CustomersPage() {
         </button>
       </div>
 
-      <div className="rounded-2xl border border-slate-200 bg-white shadow-sm overflow-hidden">
+      {/* Mobile card list */}
+      <div className="sm:hidden space-y-3">
+        {filtered.length === 0 && (
+          <div className="rounded-2xl border border-gray-100 bg-white py-12 text-center text-gray-400">
+            <Users className="mx-auto mb-2 h-8 w-8 text-gray-200" />No customers found
+          </div>
+        )}
+        {filtered.map(c => (
+          <div key={c.customerId} className="rounded-2xl border border-gray-100 bg-white p-4 shadow-sm">
+            <div className="flex items-center justify-between">
+              <div className="flex items-center gap-3">
+                <div className="flex h-9 w-9 items-center justify-center rounded-full bg-blue-100 text-sm font-bold text-blue-600">
+                  {c.fullName.charAt(0).toUpperCase()}
+                </div>
+                <div>
+                  <p className="font-semibold text-gray-900">{c.fullName}</p>
+                  <p className="text-xs text-gray-500">{c.phoneNumber}</p>
+                </div>
+              </div>
+              <div className="flex gap-1">
+                <button onClick={() => openEdit(c)} className="rounded-lg p-1.5 text-gray-400 hover:bg-blue-50 hover:text-blue-600"><Pencil className="h-4 w-4" /></button>
+                <button onClick={() => setDeleteTarget(c)} className="rounded-lg p-1.5 text-gray-400 hover:bg-red-50 hover:text-red-600"><Trash2 className="h-4 w-4" /></button>
+              </div>
+            </div>
+            <div className="mt-3 grid grid-cols-2 gap-2 text-xs text-gray-500">
+              <div><span className="font-medium text-gray-700">Address:</span> {c.address ?? '—'}</div>
+              <div><span className="font-medium text-gray-700">Sales:</span> {c.totalSales ?? 0}</div>
+              <div><span className="font-medium text-gray-700">Since:</span> {c.createdAt ? format(new Date(c.createdAt), 'dd MMM yyyy') : '—'}</div>
+            </div>
+          </div>
+        ))}
+      </div>
+
+      {/* Desktop table */}
+      <div className="hidden sm:block rounded-2xl border border-slate-200 bg-white shadow-sm overflow-hidden">
         <div className="overflow-x-auto">
           <table className="w-full text-sm">
             <thead>
