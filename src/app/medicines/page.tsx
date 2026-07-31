@@ -3,7 +3,10 @@
 import { useEffect, useState, useCallback } from 'react';
 import { useForm } from 'react-hook-form';
 import toast from 'react-hot-toast';
-import { Plus, Pencil, Trash2, Search, Pill, ListPlus, CheckCircle, XCircle } from 'lucide-react';
+import {
+  Plus, Pencil, Trash2, Search, Pill, ListPlus,
+  CheckCircle, XCircle, ChevronDown, ChevronUp,
+} from 'lucide-react';
 import { AppLayout } from '@/components/layout/AppLayout';
 import { Modal } from '@/components/ui/Modal';
 import { ConfirmDialog } from '@/components/ui/ConfirmDialog';
@@ -13,78 +16,203 @@ import { PageLoader, LoadingSpinner } from '@/components/ui/LoadingSpinner';
 import { medicineService } from '@/services/medicineService';
 import { categoryService } from '@/services/categoryService';
 import { manufacturerService } from '@/services/manufacturerService';
-import type { Medicine, CreateMedicineDto, Category, Manufacturer, BulkCreateMedicineResult, BulkCreateMedicineItemResult } from '@/types';
+import type {
+  Medicine, CreateMedicineDto, Category, Manufacturer,
+  BulkCreateMedicineItemResult,
+} from '@/types';
 
-export default function MedicinesPage() {
-  const [medicines, setMedicines] = useState<Medicine[]>([]);
-  const [categories, setCategories] = useState<Category[]>([]);
-  const [manufacturers, setManufacturers] = useState<Manufacturer[]>([]);
-  const [loading, setLoading] = useState(true);
-  const [search, setSearch] = useState('');
-  const [modalOpen, setModalOpen] = useState(false);
-  const [editing, setEditing] = useState<Medicine | null>(null);
-  const [deleteTarget, setDeleteTarget] = useState<Medicine | null>(null);
-  const [saving, setSaving] = useState(false);
-  const [deleting, setDeleting] = useState(false);
+// ── Types ─────────────────────────────────────────────────────────────────────
 
-  // ── Bulk add state ──────────────────────────────────────────────────────────
-  type BulkRow = CreateMedicineDto & { _id: string };
-  const newRow = (): BulkRow => ({
+type BulkRow = CreateMedicineDto & { _id: string };
+
+function newRow(): BulkRow {
+  return {
     _id: Math.random().toString(36).slice(2),
-    name: '', genericName: '', categoryId: undefined, manufacturerId: undefined,
+    name: '', genericName: '',
+    categoryId: undefined, manufacturerId: undefined,
     tabletsPerStrip: 1, stripPrice: 0, tabletPrice: 0,
     reorderLevel: 10, requiresPrescription: false, isActive: true,
-  });
-  const [bulkOpen, setBulkOpen] = useState(false);
-  const [bulkRows, setBulkRows] = useState<BulkRow[]>([newRow()]);
-  const [bulkSaving, setBulkSaving] = useState(false);
-  const [bulkResults, setBulkResults] = useState<BulkCreateMedicineItemResult[] | null>(null);
+  };
+}
+
+// ── Bulk entry form (shown per medicine) ─────────────────────────────────────
+
+interface BulkFormProps {
+  categories: Category[];
+  manufacturers: Manufacturer[];
+  onAdd: (row: BulkRow) => void;
+}
+
+function BulkEntryForm({ categories, manufacturers, onAdd }: BulkFormProps) {
+  const { register, handleSubmit, reset, formState: { errors } } =
+    useForm<CreateMedicineDto>({
+      defaultValues: { tabletsPerStrip: 1, reorderLevel: 10, isActive: true, requiresPrescription: false },
+    });
+
+  const onSubmit = (data: CreateMedicineDto) => {
+    onAdd({
+      ...data,
+      _id: Math.random().toString(36).slice(2),
+      categoryId: data.categoryId ? Number(data.categoryId) : undefined,
+      manufacturerId: data.manufacturerId ? Number(data.manufacturerId) : undefined,
+      tabletsPerStrip: Number(data.tabletsPerStrip),
+      stripPrice: Number(data.stripPrice),
+      tabletPrice: Number(data.tabletPrice),
+      reorderLevel: Number(data.reorderLevel),
+    });
+    reset({ tabletsPerStrip: 1, reorderLevel: 10, isActive: true, requiresPrescription: false });
+  };
+
+  return (
+    <form onSubmit={handleSubmit(onSubmit)} className="rounded-xl border border-blue-100 bg-blue-50 p-4 space-y-3">
+      <p className="text-xs font-semibold uppercase tracking-wide text-blue-600">New Medicine</p>
+      <div className="grid grid-cols-2 gap-3">
+        <div className="col-span-2">
+          <FormField
+            label="Medicine Name *"
+            placeholder="e.g. Paracetamol 500mg"
+            error={errors.name?.message}
+            {...register('name', { required: 'Required' })}
+          />
+        </div>
+        <FormField label="Generic Name" placeholder="e.g. Acetaminophen" {...register('genericName')} />
+        <div>
+          <label className="mb-1 block text-sm font-medium text-gray-700">Category</label>
+          <select
+            {...register('categoryId')}
+            className="w-full rounded-xl border border-gray-200 px-3 py-2 text-sm outline-none focus:border-blue-500 focus:ring-2 focus:ring-blue-100"
+          >
+            <option value="">— None —</option>
+            {categories.map(c => <option key={c.categoryId} value={c.categoryId}>{c.categoryName}</option>)}
+          </select>
+        </div>
+        <div>
+          <label className="mb-1 block text-sm font-medium text-gray-700">Manufacturer</label>
+          <select
+            {...register('manufacturerId')}
+            className="w-full rounded-xl border border-gray-200 px-3 py-2 text-sm outline-none focus:border-blue-500 focus:ring-2 focus:ring-blue-100"
+          >
+            <option value="">— None —</option>
+            {manufacturers.map(m => <option key={m.manufacturerId} value={m.manufacturerId}>{m.name}</option>)}
+          </select>
+        </div>
+        <FormField
+          label="Tablets / Strip *"
+          type="number" min={1}
+          error={errors.tabletsPerStrip?.message}
+          {...register('tabletsPerStrip', { required: true, min: 1 })}
+        />
+        <FormField
+          label="Strip Price (Rs) *"
+          type="number" step="0.01" min={0}
+          error={errors.stripPrice?.message}
+          {...register('stripPrice', { required: true })}
+        />
+        <FormField
+          label="Tablet Price (Rs) *"
+          type="number" step="0.01" min={0}
+          error={errors.tabletPrice?.message}
+          {...register('tabletPrice', { required: true })}
+        />
+        <FormField
+          label="Reorder Level"
+          type="number" min={0}
+          {...register('reorderLevel')}
+        />
+        <div className="col-span-2 flex gap-6">
+          <label className="flex items-center gap-2 text-sm cursor-pointer">
+            <input type="checkbox" className="h-4 w-4 rounded text-blue-600" {...register('isActive')} />
+            Active
+          </label>
+          <label className="flex items-center gap-2 text-sm cursor-pointer">
+            <input type="checkbox" className="h-4 w-4 rounded text-purple-600" {...register('requiresPrescription')} />
+            Requires Prescription
+          </label>
+        </div>
+      </div>
+      <div className="flex justify-end">
+        <button
+          type="submit"
+          className="inline-flex items-center gap-2 rounded-lg bg-blue-600 px-5 py-2 text-sm font-semibold text-white hover:bg-blue-700 transition-colors"
+        >
+          <Plus className="h-4 w-4" /> Add to List
+        </button>
+      </div>
+    </form>
+  );
+}
+
+// ── Main Page ─────────────────────────────────────────────────────────────────
+
+export default function MedicinesPage() {
+  const [medicines, setMedicines]       = useState<Medicine[]>([]);
+  const [categories, setCategories]     = useState<Category[]>([]);
+  const [manufacturers, setManufacturers] = useState<Manufacturer[]>([]);
+  const [loading, setLoading]           = useState(true);
+  const [search, setSearch]             = useState('');
+
+  // Single add/edit modal
+  const [modalOpen, setModalOpen]   = useState(false);
+  const [editing, setEditing]       = useState<Medicine | null>(null);
+  const [saving, setSaving]         = useState(false);
+
+  // Delete
+  const [deleteTarget, setDeleteTarget] = useState<Medicine | null>(null);
+  const [deleting, setDeleting]         = useState(false);
+
+  // Bulk modal
+  const [bulkOpen, setBulkOpen]         = useState(false);
+  const [bulkRows, setBulkRows]         = useState<BulkRow[]>([]);
+  const [showForm, setShowForm]         = useState(true);
+  const [bulkSaving, setBulkSaving]     = useState(false);
+  const [bulkResults, setBulkResults]   = useState<BulkCreateMedicineItemResult[] | null>(null);
 
   const { register, handleSubmit, reset, formState: { errors } } = useForm<CreateMedicineDto>();
 
   const load = useCallback(async () => {
     const [meds, cats, mfgs] = await Promise.all([
-      medicineService.getAll(), categoryService.getAll(), manufacturerService.getAll()
+      medicineService.getAll(), categoryService.getAll(), manufacturerService.getAll(),
     ]);
     setMedicines(meds); setCategories(cats); setManufacturers(mfgs);
   }, []);
 
   useEffect(() => { load().finally(() => setLoading(false)); }, [load]);
 
-  const openCreate = () => { reset({ tabletsPerStrip: 1, reorderLevel: 10, isActive: true, requiresPrescription: false }); setEditing(null); setModalOpen(true); };
+  // ── Single add/edit ───────────────────────────────────────────────────────
+
+  const openCreate = () => {
+    reset({ tabletsPerStrip: 1, reorderLevel: 10, isActive: true, requiresPrescription: false });
+    setEditing(null); setModalOpen(true);
+  };
+
   const openEdit = async (m: Medicine) => {
-    setEditing(m);
-    setModalOpen(true);
+    setEditing(m); setModalOpen(true);
     try {
       const full = await medicineService.getById(m.medicineId);
       reset({
-        name: full.name,
-        genericName: full.genericName ?? undefined,
-        categoryId: full.categoryId ?? undefined,
-        manufacturerId: full.manufacturerId ?? undefined,
-        tabletsPerStrip: full.tabletsPerStrip,
-        stripPrice: full.stripPrice,
-        tabletPrice: full.tabletPrice,
-        reorderLevel: full.reorderLevel,
-        requiresPrescription: full.requiresPrescription,
-        isActive: full.isActive,
+        name: full.name, genericName: full.genericName ?? undefined,
+        categoryId: full.categoryId ?? undefined, manufacturerId: full.manufacturerId ?? undefined,
+        tabletsPerStrip: full.tabletsPerStrip, stripPrice: full.stripPrice,
+        tabletPrice: full.tabletPrice, reorderLevel: full.reorderLevel,
+        requiresPrescription: full.requiresPrescription, isActive: full.isActive,
       });
-    } catch {
-      toast.error('Failed to load medicine details');
-      setModalOpen(false);
-    }
+    } catch { toast.error('Failed to load medicine details'); setModalOpen(false); }
   };
 
   const onSubmit = async (data: CreateMedicineDto) => {
     setSaving(true);
     try {
-      const payload = { ...data, categoryId: data.categoryId || null, manufacturerId: data.manufacturerId || null, tabletsPerStrip: Number(data.tabletsPerStrip), stripPrice: Number(data.stripPrice), tabletPrice: Number(data.tabletPrice), reorderLevel: Number(data.reorderLevel) };
+      const payload = {
+        ...data,
+        categoryId: data.categoryId || null, manufacturerId: data.manufacturerId || null,
+        tabletsPerStrip: Number(data.tabletsPerStrip), stripPrice: Number(data.stripPrice),
+        tabletPrice: Number(data.tabletPrice), reorderLevel: Number(data.reorderLevel),
+      };
       if (editing) { await medicineService.update(editing.medicineId, payload); toast.success('Medicine updated'); }
-      else          { await medicineService.create(payload); toast.success('Medicine created'); }
+      else         { await medicineService.create(payload); toast.success('Medicine created'); }
       setModalOpen(false); await load();
-    } catch (e: any) {
-      toast.error(e.response?.data?.message ?? 'Something went wrong');
-    } finally { setSaving(false); }
+    } catch (e: any) { toast.error(e.response?.data?.message ?? 'Something went wrong'); }
+    finally { setSaving(false); }
   };
 
   const handleDelete = async () => {
@@ -95,42 +223,37 @@ export default function MedicinesPage() {
     finally { setDeleting(false); }
   };
 
-  const openBulk = () => { setBulkRows([newRow()]); setBulkResults(null); setBulkOpen(true); };
+  // ── Bulk helpers ──────────────────────────────────────────────────────────
+
+  const openBulk = () => { setBulkRows([]); setBulkResults(null); setShowForm(true); setBulkOpen(true); };
   const closeBulk = () => { setBulkOpen(false); setBulkResults(null); };
 
-  const updateRow = (id: string, field: keyof CreateMedicineDto, value: unknown) =>
-    setBulkRows(rows => rows.map(r => r._id === id ? { ...r, [field]: value } : r));
+  const handleBulkAdd = (row: BulkRow) => {
+    setBulkRows(prev => [...prev, row]);
+    setShowForm(false); // collapse form after adding; user can re-open with button
+  };
 
-  const addRow = () => setBulkRows(rows => [...rows, newRow()]);
-  const removeRow = (id: string) => setBulkRows(rows => rows.filter(r => r._id !== id));
+  const removeBulkRow = (id: string) => setBulkRows(prev => prev.filter(r => r._id !== id));
 
   const submitBulk = async () => {
+    if (bulkRows.length === 0) { toast.error('Add at least one medicine'); return; }
     const payload = bulkRows.map(({ _id, ...rest }) => ({
       ...rest,
-      categoryId: rest.categoryId || null,
-      manufacturerId: rest.manufacturerId || null,
-      tabletsPerStrip: Number(rest.tabletsPerStrip),
-      stripPrice: Number(rest.stripPrice),
-      tabletPrice: Number(rest.tabletPrice),
-      reorderLevel: Number(rest.reorderLevel),
+      categoryId: rest.categoryId || null, manufacturerId: rest.manufacturerId || null,
+      tabletsPerStrip: Number(rest.tabletsPerStrip), stripPrice: Number(rest.stripPrice),
+      tabletPrice: Number(rest.tabletPrice), reorderLevel: Number(rest.reorderLevel),
     }));
     setBulkSaving(true);
     try {
       const result = await medicineService.bulkCreate(payload);
       setBulkResults(result.results);
-      if (result.totalCreated > 0) {
-        toast.success(`${result.totalCreated} medicine(s) created`);
-        await load();
-      }
-      if (result.totalFailed > 0) {
-        toast.error(`${result.totalFailed} row(s) failed`);
-      }
-    } catch (e: any) {
-      toast.error(e.response?.data?.message ?? 'Bulk create failed');
-    } finally {
-      setBulkSaving(false);
-    }
+      if (result.totalCreated > 0) { toast.success(`${result.totalCreated} medicine(s) created`); await load(); }
+      if (result.totalFailed > 0)  { toast.error(`${result.totalFailed} row(s) failed`); }
+    } catch (e: any) { toast.error(e.response?.data?.message ?? 'Bulk create failed'); }
+    finally { setBulkSaving(false); }
   };
+
+  // ── Filter ────────────────────────────────────────────────────────────────
 
   const filtered = medicines.filter(m =>
     m.name.toLowerCase().includes(search.toLowerCase()) ||
@@ -141,6 +264,7 @@ export default function MedicinesPage() {
 
   return (
     <AppLayout title="Medicines">
+
       {/* Header */}
       <div className="mb-6 flex flex-col gap-4 sm:flex-row sm:items-center sm:justify-between">
         <div className="relative max-w-xs flex-1">
@@ -149,16 +273,18 @@ export default function MedicinesPage() {
             className="w-full rounded-xl border border-gray-200 bg-white py-2 pl-9 pr-4 text-sm outline-none focus:border-blue-500 focus:ring-2 focus:ring-blue-100" />
         </div>
         <div className="flex items-center gap-2">
-          <button onClick={openCreate} className="inline-flex items-center gap-2 rounded-xl bg-indigo-600 px-4 py-2 text-sm font-semibold text-white hover:bg-indigo-700 transition-colors shadow-sm">
+          <button onClick={openCreate}
+            className="inline-flex items-center gap-2 rounded-xl bg-indigo-600 px-4 py-2 text-sm font-semibold text-white hover:bg-indigo-700 transition-colors shadow-sm">
             <Plus className="h-4 w-4" /> Add Medicine
           </button>
-          <button onClick={openBulk} className="inline-flex items-center gap-2 rounded-xl bg-emerald-600 px-4 py-2 text-sm font-semibold text-white hover:bg-emerald-700 transition-colors shadow-sm">
+          <button onClick={openBulk}
+            className="inline-flex items-center gap-2 rounded-xl bg-emerald-600 px-4 py-2 text-sm font-semibold text-white hover:bg-emerald-700 transition-colors shadow-sm">
             <ListPlus className="h-4 w-4" /> Add Multiple
           </button>
         </div>
       </div>
 
-      {/* Table */}
+      {/* Medicines Table */}
       <div className="rounded-2xl border border-slate-200 bg-white shadow-sm overflow-hidden">
         <div className="overflow-x-auto">
           <table className="w-full text-sm">
@@ -214,7 +340,7 @@ export default function MedicinesPage() {
         </div>
       </div>
 
-      {/* Create/Edit Modal */}
+      {/* Single Create/Edit Modal */}
       <Modal open={modalOpen} onClose={() => setModalOpen(false)} title={editing ? 'Edit Medicine' : 'Add Medicine'} size="lg">
         <form onSubmit={handleSubmit(onSubmit)} className="grid grid-cols-2 gap-4">
           <div className="col-span-2"><FormField label="Medicine Name *" placeholder="e.g. Paracetamol 500mg" error={errors.name?.message} {...register('name', { required: 'Required' })} /></div>
@@ -231,14 +357,8 @@ export default function MedicinesPage() {
           <FormField label="Strip Price (Rs) *" type="number" step="0.01" min={0} error={errors.stripPrice?.message} {...register('stripPrice', { required: true })} />
           <FormField label="Tablet Price (Rs) *" type="number" step="0.01" min={0} error={errors.tabletPrice?.message} {...register('tabletPrice', { required: true })} />
           <div className="col-span-2 flex gap-6">
-            <label className="flex items-center gap-2 text-sm cursor-pointer">
-              <input type="checkbox" className="h-4 w-4 rounded text-blue-600" {...register('isActive')} />
-              Active
-            </label>
-            <label className="flex items-center gap-2 text-sm cursor-pointer">
-              <input type="checkbox" className="h-4 w-4 rounded text-purple-600" {...register('requiresPrescription')} />
-              Requires Prescription
-            </label>
+            <label className="flex items-center gap-2 text-sm cursor-pointer"><input type="checkbox" className="h-4 w-4 rounded text-blue-600" {...register('isActive')} />Active</label>
+            <label className="flex items-center gap-2 text-sm cursor-pointer"><input type="checkbox" className="h-4 w-4 rounded text-purple-600" {...register('requiresPrescription')} />Requires Prescription</label>
           </div>
           <div className="col-span-2 flex justify-end gap-3 pt-2">
             <button type="button" onClick={() => setModalOpen(false)} className="rounded-lg border border-gray-200 px-4 py-2 text-sm font-medium hover:bg-gray-50">Cancel</button>
@@ -250,11 +370,12 @@ export default function MedicinesPage() {
         </form>
       </Modal>
 
-      <ConfirmDialog open={!!deleteTarget} title="Delete Medicine" message={`Delete "${deleteTarget?.name}"? This cannot be undone.`}
+      <ConfirmDialog open={!!deleteTarget} title="Delete Medicine"
+        message={`Delete "${deleteTarget?.name}"? This cannot be undone.`}
         onConfirm={handleDelete} onCancel={() => setDeleteTarget(null)} loading={deleting} />
 
       {/* ── Bulk Add Modal ──────────────────────────────────────────────────── */}
-      <Modal open={bulkOpen} onClose={closeBulk} title="Add Multiple Medicines" size="xl">
+      <Modal open={bulkOpen} onClose={closeBulk} title="Add Multiple Medicines" size="lg">
         {bulkResults ? (
           /* Results view */
           <div className="space-y-3">
@@ -268,7 +389,7 @@ export default function MedicinesPage() {
                 <div key={i} className={`flex items-start gap-3 px-4 py-3 text-sm ${r.success ? 'bg-emerald-50' : 'bg-red-50'}`}>
                   {r.success
                     ? <CheckCircle className="mt-0.5 h-4 w-4 flex-shrink-0 text-emerald-500" />
-                    : <XCircle className="mt-0.5 h-4 w-4 flex-shrink-0 text-red-500" />}
+                    : <XCircle    className="mt-0.5 h-4 w-4 flex-shrink-0 text-red-500" />}
                   <div>
                     <p className="font-medium text-slate-800">{r.data?.name ?? bulkRows[i]?.name ?? `Row ${i + 1}`}</p>
                     <p className={`text-xs ${r.success ? 'text-emerald-700' : 'text-red-600'}`}>{r.message}</p>
@@ -276,129 +397,91 @@ export default function MedicinesPage() {
                 </div>
               ))}
             </div>
-            <div className="flex justify-end gap-3 pt-2">
+            <div className="flex justify-end pt-2">
               <button onClick={closeBulk} className="rounded-lg bg-blue-600 px-5 py-2 text-sm font-semibold text-white hover:bg-blue-700">Done</button>
             </div>
           </div>
         ) : (
-          /* Input view */
           <div className="space-y-4">
-            <div className="overflow-x-auto rounded-xl border border-slate-200">
-              <table className="w-full text-sm">
-                <thead className="bg-slate-50 text-xs font-semibold uppercase tracking-wide text-slate-500">
-                  <tr>
-                    <th className="px-3 py-2 text-left">#</th>
-                    <th className="px-3 py-2 text-left">Name *</th>
-                    <th className="px-3 py-2 text-left">Generic Name</th>
-                    <th className="px-3 py-2 text-left">Category</th>
-                    <th className="px-3 py-2 text-left">Manufacturer</th>
-                    <th className="px-3 py-2 text-left">Tabs/Strip</th>
-                    <th className="px-3 py-2 text-left">Strip Price</th>
-                    <th className="px-3 py-2 text-left">Tablet Price</th>
-                    <th className="px-3 py-2 text-left">Active</th>
-                    <th className="px-3 py-2 text-left">Rx</th>
-                    <th className="px-3 py-2"></th>
-                  </tr>
-                </thead>
-                <tbody className="divide-y divide-slate-100">
-                  {bulkRows.map((row, idx) => (
-                    <tr key={row._id} className="hover:bg-slate-50">
-                      <td className="px-3 py-2 text-slate-400">{idx + 1}</td>
-                      <td className="px-3 py-2">
-                        <input
-                          value={row.name}
-                          onChange={e => updateRow(row._id, 'name', e.target.value)}
-                          placeholder="Paracetamol 500mg"
-                          className="w-40 rounded-lg border border-gray-200 px-2 py-1.5 text-sm outline-none focus:border-blue-400 focus:ring-1 focus:ring-blue-100"
-                        />
-                      </td>
-                      <td className="px-3 py-2">
-                        <input
-                          value={row.genericName ?? ''}
-                          onChange={e => updateRow(row._id, 'genericName', e.target.value)}
-                          placeholder="Generic"
-                          className="w-32 rounded-lg border border-gray-200 px-2 py-1.5 text-sm outline-none focus:border-blue-400 focus:ring-1 focus:ring-blue-100"
-                        />
-                      </td>
-                      <td className="px-3 py-2">
-                        <select
-                          value={row.categoryId ?? ''}
-                          onChange={e => updateRow(row._id, 'categoryId', e.target.value ? Number(e.target.value) : undefined)}
-                          className="w-32 rounded-lg border border-gray-200 px-2 py-1.5 text-sm outline-none focus:border-blue-400"
-                        >
-                          <option value="">— None —</option>
-                          {categories.map(c => <option key={c.categoryId} value={c.categoryId}>{c.categoryName}</option>)}
-                        </select>
-                      </td>
-                      <td className="px-3 py-2">
-                        <select
-                          value={row.manufacturerId ?? ''}
-                          onChange={e => updateRow(row._id, 'manufacturerId', e.target.value ? Number(e.target.value) : undefined)}
-                          className="w-32 rounded-lg border border-gray-200 px-2 py-1.5 text-sm outline-none focus:border-blue-400"
-                        >
-                          <option value="">— None —</option>
-                          {manufacturers.map(m => <option key={m.manufacturerId} value={m.manufacturerId}>{m.name}</option>)}
-                        </select>
-                      </td>
-                      <td className="px-3 py-2">
-                        <input
-                          type="number" min={1} value={row.tabletsPerStrip}
-                          onChange={e => updateRow(row._id, 'tabletsPerStrip', Number(e.target.value))}
-                          className="w-16 rounded-lg border border-gray-200 px-2 py-1.5 text-sm outline-none focus:border-blue-400"
-                        />
-                      </td>
-                      <td className="px-3 py-2">
-                        <input
-                          type="number" min={0} step="0.01" value={row.stripPrice}
-                          onChange={e => updateRow(row._id, 'stripPrice', Number(e.target.value))}
-                          className="w-20 rounded-lg border border-gray-200 px-2 py-1.5 text-sm outline-none focus:border-blue-400"
-                        />
-                      </td>
-                      <td className="px-3 py-2">
-                        <input
-                          type="number" min={0} step="0.01" value={row.tabletPrice}
-                          onChange={e => updateRow(row._id, 'tabletPrice', Number(e.target.value))}
-                          className="w-20 rounded-lg border border-gray-200 px-2 py-1.5 text-sm outline-none focus:border-blue-400"
-                        />
-                      </td>
-                      <td className="px-3 py-2 text-center">
-                        <input
-                          type="checkbox" checked={row.isActive}
-                          onChange={e => updateRow(row._id, 'isActive', e.target.checked)}
-                          className="h-4 w-4 rounded text-blue-600"
-                        />
-                      </td>
-                      <td className="px-3 py-2 text-center">
-                        <input
-                          type="checkbox" checked={row.requiresPrescription}
-                          onChange={e => updateRow(row._id, 'requiresPrescription', e.target.checked)}
-                          className="h-4 w-4 rounded text-purple-600"
-                        />
-                      </td>
-                      <td className="px-3 py-2">
-                        {bulkRows.length > 1 && (
-                          <button onClick={() => removeRow(row._id)} className="rounded p-1 text-gray-400 hover:bg-red-50 hover:text-red-500 transition-colors">
-                            <Trash2 className="h-4 w-4" />
-                          </button>
-                        )}
-                      </td>
+
+            {/* Added medicines preview table */}
+            {bulkRows.length > 0 && (
+              <div className="rounded-xl border border-slate-200 overflow-hidden">
+                <div className="bg-slate-50 px-4 py-2 text-xs font-semibold uppercase tracking-wide text-slate-500">
+                  Added — {bulkRows.length} medicine{bulkRows.length !== 1 ? 's' : ''}
+                </div>
+                <table className="w-full text-sm">
+                  <thead>
+                    <tr className="border-b border-slate-100 text-xs text-slate-400">
+                      <th className="px-4 py-2 text-left">#</th>
+                      <th className="px-4 py-2 text-left">Name</th>
+                      <th className="px-4 py-2 text-left">Generic</th>
+                      <th className="px-4 py-2 text-left">Strip Rs</th>
+                      <th className="px-4 py-2 text-left">Tab Rs</th>
+                      <th className="px-4 py-2 text-left">Tabs/Strip</th>
+                      <th className="px-4 py-2" />
                     </tr>
-                  ))}
-                </tbody>
-              </table>
-            </div>
+                  </thead>
+                  <tbody className="divide-y divide-slate-50">
+                    {bulkRows.map((row, idx) => (
+                      <tr key={row._id} className="hover:bg-slate-50">
+                        <td className="px-4 py-2 text-slate-400">{idx + 1}</td>
+                        <td className="px-4 py-2 font-medium text-slate-800">{row.name}</td>
+                        <td className="px-4 py-2 text-slate-500">{row.genericName || '—'}</td>
+                        <td className="px-4 py-2 text-slate-600">{Number(row.stripPrice).toFixed(2)}</td>
+                        <td className="px-4 py-2 text-slate-600">{Number(row.tabletPrice).toFixed(2)}</td>
+                        <td className="px-4 py-2 text-slate-600">{row.tabletsPerStrip}</td>
+                        <td className="px-4 py-2">
+                          <button onClick={() => removeBulkRow(row._id)} className="rounded p-1 text-gray-300 hover:bg-red-50 hover:text-red-500 transition-colors">
+                            <Trash2 className="h-3.5 w-3.5" />
+                          </button>
+                        </td>
+                      </tr>
+                    ))}
+                  </tbody>
+                </table>
+              </div>
+            )}
 
-            <button onClick={addRow} className="inline-flex items-center gap-1.5 rounded-lg border border-dashed border-slate-300 px-4 py-2 text-sm text-slate-500 hover:border-blue-400 hover:text-blue-600 transition-colors">
-              <Plus className="h-4 w-4" /> Add Row
-            </button>
-
-            <div className="flex justify-end gap-3 pt-1">
-              <button onClick={closeBulk} className="rounded-lg border border-gray-200 px-4 py-2 text-sm font-medium hover:bg-gray-50">Cancel</button>
-              <button onClick={submitBulk} disabled={bulkSaving} className="inline-flex items-center gap-2 rounded-lg bg-emerald-600 px-5 py-2 text-sm font-semibold text-white hover:bg-emerald-700 disabled:opacity-60">
-                {bulkSaving && <LoadingSpinner className="h-4 w-4 text-white" />}
-                Create {bulkRows.length} Medicine{bulkRows.length !== 1 ? 's' : ''}
+            {/* Toggle entry form */}
+            {showForm ? (
+              <div className="space-y-3">
+                <BulkEntryForm
+                  categories={categories}
+                  manufacturers={manufacturers}
+                  onAdd={handleBulkAdd}
+                />
+                {bulkRows.length > 0 && (
+                  <button
+                    type="button"
+                    onClick={() => setShowForm(false)}
+                    className="flex items-center gap-1 text-xs text-slate-400 hover:text-slate-600"
+                  >
+                    <ChevronUp className="h-3.5 w-3.5" /> Hide form
+                  </button>
+                )}
+              </div>
+            ) : (
+              <button
+                type="button"
+                onClick={() => setShowForm(true)}
+                className="inline-flex w-full items-center justify-center gap-2 rounded-xl border-2 border-dashed border-slate-200 py-3 text-sm font-semibold text-slate-500 hover:border-blue-400 hover:text-blue-600 transition-colors"
+              >
+                <Plus className="h-4 w-4" /> Add Another Medicine
               </button>
-            </div>
+            )}
+
+            {/* Submit */}
+            {bulkRows.length > 0 && (
+              <div className="flex justify-end gap-3 pt-1 border-t border-slate-100">
+                <button onClick={closeBulk} className="rounded-lg border border-gray-200 px-4 py-2 text-sm font-medium hover:bg-gray-50">Cancel</button>
+                <button onClick={submitBulk} disabled={bulkSaving}
+                  className="inline-flex items-center gap-2 rounded-lg bg-emerald-600 px-5 py-2 text-sm font-semibold text-white hover:bg-emerald-700 disabled:opacity-60">
+                  {bulkSaving && <LoadingSpinner className="h-4 w-4 text-white" />}
+                  Save {bulkRows.length} Medicine{bulkRows.length !== 1 ? 's' : ''}
+                </button>
+              </div>
+            )}
           </div>
         )}
       </Modal>
