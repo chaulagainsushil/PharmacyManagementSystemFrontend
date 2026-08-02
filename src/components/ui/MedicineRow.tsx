@@ -1,6 +1,6 @@
 'use client';
 
-import { Trash2 } from 'lucide-react';
+import { Trash2, Minus, Plus } from 'lucide-react';
 import type { Medicine, CartItem, SaleUnitType } from '@/types';
 
 interface Props {
@@ -31,6 +31,16 @@ export function MedicineRow({ row, medicines, onChange, onRemove }: Props) {
     onChange(row.id, { saleUnitType: type, unitPrice });
   };
 
+  const decrement = () => {
+    if (!selected) return;
+    onChange(row.id, { quantity: Math.max(1, row.quantity - 1) });
+  };
+
+  const increment = () => {
+    if (!selected) return;
+    onChange(row.id, { quantity: row.quantity + 1 });
+  };
+
   const lineTotal =
     row.quantity * row.unitPrice * (1 - row.discountPercent / 100);
 
@@ -53,6 +63,9 @@ export function MedicineRow({ row, medicines, onChange, onRemove }: Props) {
         {selected && (
           <p className="mt-0.5 text-xs text-gray-400 pl-1">
             Stock: {selected.totalStockInTablets.toLocaleString()} tabs
+            {selected.requiresPrescription && (
+              <span className="ml-1.5 rounded bg-purple-100 px-1 py-0.5 text-xs font-semibold text-purple-700">Rx</span>
+            )}
           </p>
         )}
       </td>
@@ -83,16 +96,34 @@ export function MedicineRow({ row, medicines, onChange, onRemove }: Props) {
         )}
       </td>
 
-      {/* Quantity */}
+      {/* Quantity with +/- buttons */}
       <td className="px-3 py-2">
-        <input
-          type="number"
-          min={1}
-          value={row.quantity}
-          onChange={e => onChange(row.id, { quantity: Math.max(1, Number(e.target.value)) })}
-          disabled={!selected}
-          className="w-16 rounded-lg border border-gray-200 px-2 py-1.5 text-center text-sm outline-none focus:border-blue-500 focus:ring-1 focus:ring-blue-200 disabled:bg-gray-50"
-        />
+        <div className="flex items-center gap-1">
+          <button
+            type="button"
+            onClick={decrement}
+            disabled={!selected || row.quantity <= 1}
+            className="flex h-7 w-7 items-center justify-center rounded-md border border-gray-200 text-gray-500 hover:border-blue-400 hover:bg-blue-50 hover:text-blue-600 disabled:cursor-not-allowed disabled:opacity-30 transition-colors"
+          >
+            <Minus className="h-3 w-3" />
+          </button>
+          <input
+            type="number"
+            min={1}
+            value={row.quantity}
+            onChange={e => onChange(row.id, { quantity: Math.max(1, Number(e.target.value)) })}
+            disabled={!selected}
+            className="w-12 rounded-lg border border-gray-200 px-1 py-1.5 text-center text-sm outline-none focus:border-blue-500 focus:ring-1 focus:ring-blue-200 disabled:bg-gray-50"
+          />
+          <button
+            type="button"
+            onClick={increment}
+            disabled={!selected}
+            className="flex h-7 w-7 items-center justify-center rounded-md border border-gray-200 text-gray-500 hover:border-blue-400 hover:bg-blue-50 hover:text-blue-600 disabled:cursor-not-allowed disabled:opacity-30 transition-colors"
+          >
+            <Plus className="h-3 w-3" />
+          </button>
+        </div>
       </td>
 
       {/* Discount */}

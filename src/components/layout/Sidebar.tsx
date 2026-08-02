@@ -5,21 +5,24 @@ import { usePathname } from 'next/navigation';
 import {
   LayoutDashboard, Pill, Package, Users, Tag, Building2,
   Truck, ShoppingCart, LogOut, Activity, X, History, UserPlus,
+  FlaskConical, AlertTriangle,
 } from 'lucide-react';
 import { cn } from '@/lib/utils';
 import { useAuth } from '@/context/AuthContext';
 
 const navItems = [
-  { href: '/dashboard',      label: 'Dashboard',      icon: LayoutDashboard },
-  { href: '/medicines',      label: 'Medicines',       icon: Pill },
-  { href: '/batches',        label: 'Batches',         icon: Package },
-  { href: '/customers',      label: 'Customers',       icon: Users },
-  { href: '/sales',          label: 'Sell Medicine',   icon: ShoppingCart },
-  { href: '/sales-history',  label: 'Sales History',   icon: History },
-  { href: '/categories',     label: 'Categories',      icon: Tag },
-  { href: '/manufacturers',  label: 'Manufacturers',   icon: Building2 },
-  { href: '/suppliers',      label: 'Suppliers',       icon: Truck },
-  { href: '/signup',         label: 'Add Pharmacist',  icon: UserPlus },
+  { href: '/dashboard',      label: 'Dashboard',        icon: LayoutDashboard },
+  { href: '/medicines',      label: 'Medicines',         icon: Pill },
+  { href: '/batches',        label: 'Batches',           icon: Package },
+  { href: '/customers',      label: 'Customers',         icon: Users },
+  { href: '/sales',          label: 'Sell Medicine',     icon: ShoppingCart },
+  { href: '/sales-history',  label: 'Sales History',     icon: History },
+  { href: '/near-expiry',    label: 'Near Expiry',       icon: AlertTriangle },
+  { href: '/disposals',      label: 'Disposal Records',  icon: FlaskConical },
+  { href: '/categories',     label: 'Categories',        icon: Tag },
+  { href: '/manufacturers',  label: 'Manufacturers',     icon: Building2 },
+  { href: '/suppliers',      label: 'Suppliers',         icon: Truck },
+  { href: '/signup',         label: 'Add Pharmacist',    icon: UserPlus },
 ];
 
 interface SidebarProps {
@@ -72,6 +75,7 @@ export function Sidebar({ open, onClose }: SidebarProps) {
         <nav className="flex-1 overflow-y-auto px-3 py-4 space-y-0.5">
           {navItems.map(({ href, label, icon: Icon }) => {
             const active = pathname === href || pathname.startsWith(href + '/');
+            const isWarning = href === '/near-expiry';
             return (
               <Link
                 key={href}
@@ -79,8 +83,12 @@ export function Sidebar({ open, onClose }: SidebarProps) {
                 onClick={onClose}
                 className={cn(
                   'flex items-center gap-3 rounded-xl px-3 py-2.5 text-sm font-medium transition-all',
-                  active
+                  active && isWarning
+                    ? 'bg-yellow-500 text-white shadow-sm'
+                    : active
                     ? 'bg-blue-600 text-white shadow-sm'
+                    : isWarning
+                    ? 'text-yellow-400 hover:bg-slate-800 hover:text-yellow-300'
                     : 'text-slate-300 hover:bg-slate-800 hover:text-white'
                 )}
               >

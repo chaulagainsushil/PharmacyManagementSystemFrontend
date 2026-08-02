@@ -133,6 +133,20 @@ export interface CreateMedicineBatchDto {
   receivedDate: string;
 }
 
+export interface BulkCreateMedicineBatchItemResult {
+  index: number;
+  success: boolean;
+  message: string;
+  data?: MedicineBatch;
+}
+
+export interface BulkCreateMedicineBatchResult {
+  totalRequested: number;
+  totalCreated: number;
+  totalFailed: number;
+  results: BulkCreateMedicineBatchItemResult[];
+}
+
 // ── Customer ─────────────────────────────────────────────────────────────────
 export interface Customer {
   customerId: number;
@@ -226,3 +240,38 @@ export interface Pharmacist {
   fullName: string;
   email: string;
 }
+
+// ── Disposal ─────────────────────────────────────────────────────────────────
+export interface DisposalItemResponse {
+  disposalItemId: number;
+  medicineId: number;
+  medicineName: string;
+  batchId: number;
+  batchNumber: string;
+  quantityInTablets: number;
+  reason: string;
+}
+
+export interface DisposalResponse {
+  disposalId: number;
+  disposalNumber: string;
+  pharmacistId: number;
+  pharmacistName: string;
+  disposalDate: string;
+  items: DisposalItemResponse[];
+}
+
+export interface CreateDisposalItemDto {
+  medicineId: number;
+  batchId: number;
+  quantityInTablets: number;
+  reason: string;
+}
+
+export interface CreateDisposalRequestDto {
+  pharmacistId: number;
+  items: CreateDisposalItemDto[];
+}
+
+// ── Near Expiry (re-uses MedicineBatch) ───────────────────────────────────────
+// MedicineBatchListItemDto from the backend — frontend uses the same MedicineBatch type

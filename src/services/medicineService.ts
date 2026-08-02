@@ -11,4 +11,13 @@ export const medicineService = {
   delete: (id: number) => api.delete(`/api/medicine/${id}`).then((r) => r.data),
   bulkCreate: (dtos: CreateMedicineDto[]) =>
     api.post<BulkCreateMedicineResult>('/api/medicine/bulk', dtos).then((r) => r.data),
+  uploadPrescription: (file: File) => {
+    const form = new FormData();
+    form.append('file', file);
+    return api
+      .post<{ url: string; fileName: string }>('/api/medicine/prescription-upload', form, {
+        headers: { 'Content-Type': 'multipart/form-data' },
+      })
+      .then((r) => r.data);
+  },
 };

@@ -1,10 +1,11 @@
 'use client';
 
-import { useEffect, useState, useCallback } from 'react';
+import { useEffect, useState, useCallback, useRef } from 'react';
 import toast from 'react-hot-toast';
 import {
   ShoppingCart, Plus, User, CreditCard,
   Banknote, Smartphone, Receipt, CheckCircle, X, Percent, Search,
+  FileImage, Upload, Trash2,
 } from 'lucide-react';
 import { AppLayout } from '@/components/layout/AppLayout';
 import { Modal } from '@/components/ui/Modal';
@@ -72,6 +73,12 @@ export default function SalesPage() {
   const [customerSearch, setCustomerSearch]     = useState('');
   const [customerDropdown, setCustomerDropdown] = useState(false);
 
+  // Prescription upload
+  const [prescriptionFile, setPrescriptionFile] = useState<File | null>(null);
+  const [prescriptionPreview, setPrescriptionPreview] = useState<string | null>(null);
+  const [uploadingPrescription, setUploadingPrescription] = useState(false);
+  const fileInputRef = useRef<HTMLInputElement>(null);
+
   // Invoice
   const [invoiceOpen, setInvoiceOpen] = useState(false);
   const [invoice, setInvoice]         = useState<SaleResponse | null>(null);
@@ -89,9 +96,46 @@ export default function SalesPage() {
 
   useEffect(() => { load().finally(() => setLoading(false)); }, [load]);
 
+  // ── Prescription: check if any row needs it ───────────────────────────────
+
+  const validRows = rows.filter(r => r.medicineId !== 0);
+  const requiresPrescription = validRows.some(r => {
+    const med = medicines.find(m => m.medicineId === r.medicineId);
+    return med?.requiresPrescription;
+  });
+
+  const handleFileSelect = (e: React.ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0];
+    if (!file) return;
+
+    const allowed = ['image/jpeg', 'image/png', 'image/webp', 'application/pdf'];
+    if (!allowed.includes(file.type)) {
+      toast.error('Only JPG, PNG, WebP, or PDF files are accepted.');
+      return;
+    }
+    if (file.size > 10 * 1024 * 1024) {
+      toast.error('File size must not exceed 10 MB.');
+      return;
+    }
+
+    setPrescriptionFile(file);
+    if (file.type.startsWith('image/')) {
+      const reader = new FileReader();
+      reader.onload = (ev) => setPrescriptionPreview(ev.target?.result as string);
+      reader.readAsDataURL(file);
+    } else {
+      setPrescriptionPreview(null); // PDF — no preview
+    }
+  };
+
+  const clearPrescription = () => {
+    setPrescriptionFile(null);
+    setPrescriptionPreview(null);
+    if (fileInputRef.current) fileInputRef.current.value = '';
+  };
+
   // ── Walk-in customer helper ───────────────────────────────────────────────
 
-  /** Returns existing walk-in customer id or creates one on the fly */
   const ensureWalkInCustomer = async (): Promise<number> => {
     const existing = customers.find(
       c => c.phoneNumber === WALKIN_PHONE || c.fullName === WALKIN_NAME
@@ -102,7 +146,6 @@ export default function SalesPage() {
       fullName: WALKIN_NAME,
       phoneNumber: WALKIN_PHONE,
     });
-    // add to local list so next time we find it without an API call
     setCustomers(prev => [...prev, created]);
     return created.customerId;
   };
@@ -122,7 +165,6 @@ export default function SalesPage() {
   const lineTotal = (r: CartItem) =>
     r.medicineId === 0 ? 0 : r.quantity * r.unitPrice * (1 - r.discountPercent / 100);
 
-  const validRows   = rows.filter(r => r.medicineId !== 0);
   const subtotal    = validRows.reduce((s, r) => s + lineTotal(r), 0);
   const discountAmt = subtotal * (discount / 100);
   const afterPct    = subtotal - discountAmt;
@@ -136,10 +178,23 @@ export default function SalesPage() {
       toast.error('Cannot identify pharmacist. Please log out and back in.');
       return;
     }
+    if (requiresPrescription && !prescriptionFile) {
+      toast.error('Please upload a prescription — one or more medicines require it.');
+      return;
+    }
 
     setSubmitting(true);
     try {
-      // Resolve customer — fall back to walk-in
+      // Upload prescription if provided
+      if (requiresPrescription && prescriptionFile) {
+        setUploadingPrescription(true);
+        try {
+          await medicineService.uploadPrescription(prescriptionFile);
+        } finally {
+          setUploadingPrescription(false);
+        }
+      }
+
       const customerId = selectedCustomer
         ? selectedCustomer.customerId
         : await ensureWalkInCustomer();
@@ -170,6 +225,7 @@ export default function SalesPage() {
       setDiscount(0);
       setCashDiscount(0);
       setPaymentMode(0);
+      clearPrescription();
       toast.success(`Sale ${result.invoiceNumber} completed!`);
     } catch (e: any) {
       toast.error(e.response?.data?.message ?? 'Sale failed');
@@ -272,7 +328,7 @@ export default function SalesPage() {
                 <tr className="bg-gray-50 text-xs font-semibold uppercase tracking-wide text-gray-500">
                   <th className="px-3 py-2 text-left w-64">Medicine</th>
                   <th className="px-3 py-2 text-left w-32">Unit</th>
-                  <th className="px-3 py-2 text-left w-24">Qty</th>
+                  <th className="px-3 py-2 text-left w-32">Qty</th>
                   <th className="px-3 py-2 text-left w-28">Disc %</th>
                   <th className="px-3 py-2 text-right w-28">Total</th>
                   <th className="px-3 py-2 w-10" />
@@ -292,6 +348,63 @@ export default function SalesPage() {
             </table>
           </div>
         </div>
+
+        {/* ── Prescription Upload (only when required) ─────────────────────── */}
+        {requiresPrescription && (
+          <div className="rounded-2xl border-2 border-purple-200 bg-purple-50 p-4 shadow-sm">
+            <div className="flex items-center gap-2 mb-3">
+              <FileImage className="h-5 w-5 text-purple-600" />
+              <h3 className="font-semibold text-purple-900">Prescription Required</h3>
+              <span className="rounded bg-purple-100 px-2 py-0.5 text-xs font-bold text-purple-700">Rx</span>
+              <span className="ml-1 text-xs text-purple-500">One or more medicines require a valid prescription.</span>
+            </div>
+
+            {prescriptionFile ? (
+              <div className="flex items-center gap-4">
+                {prescriptionPreview ? (
+                  <img
+                    src={prescriptionPreview}
+                    alt="Prescription preview"
+                    className="h-24 w-24 rounded-xl object-cover border border-purple-200"
+                  />
+                ) : (
+                  <div className="flex h-24 w-24 items-center justify-center rounded-xl bg-purple-100 border border-purple-200">
+                    <FileImage className="h-8 w-8 text-purple-400" />
+                  </div>
+                )}
+                <div className="flex-1">
+                  <p className="text-sm font-medium text-gray-800">{prescriptionFile.name}</p>
+                  <p className="text-xs text-gray-400">{(prescriptionFile.size / 1024).toFixed(1)} KB</p>
+                  <button
+                    type="button"
+                    onClick={clearPrescription}
+                    className="mt-2 inline-flex items-center gap-1 rounded-lg border border-red-200 bg-white px-3 py-1 text-xs font-medium text-red-600 hover:bg-red-50 transition-colors"
+                  >
+                    <Trash2 className="h-3 w-3" /> Remove
+                  </button>
+                </div>
+              </div>
+            ) : (
+              <div>
+                <input
+                  ref={fileInputRef}
+                  type="file"
+                  accept=".jpg,.jpeg,.png,.webp,.pdf"
+                  className="hidden"
+                  onChange={handleFileSelect}
+                />
+                <button
+                  type="button"
+                  onClick={() => fileInputRef.current?.click()}
+                  className="inline-flex items-center gap-2 rounded-xl border-2 border-dashed border-purple-300 bg-white px-6 py-4 text-sm font-medium text-purple-600 hover:border-purple-500 hover:bg-purple-50 transition-colors"
+                >
+                  <Upload className="h-5 w-5" />
+                  Click to upload prescription (JPG, PNG, WebP, PDF — max 10 MB)
+                </button>
+              </div>
+            )}
+          </div>
+        )}
 
         {/* ── Summary + Payment ────────────────────────────────────────────── */}
         <div className="rounded-2xl border border-gray-100 bg-white p-5 shadow-sm space-y-4">
@@ -373,13 +486,15 @@ export default function SalesPage() {
 
             <button
               onClick={handleSell}
-              disabled={submitting || validRows.length === 0}
+              disabled={submitting || validRows.length === 0 || (requiresPrescription && !prescriptionFile)}
               className="inline-flex items-center gap-2 rounded-xl bg-green-600 px-8 py-3 text-sm font-bold text-white hover:bg-green-700 disabled:opacity-50 transition-colors shadow-sm whitespace-nowrap"
             >
               {submitting
                 ? <LoadingSpinner className="h-4 w-4 text-white" />
                 : <CheckCircle className="h-4 w-4" />}
-              {submitting ? 'Processing…' : 'Complete Sale'}
+              {submitting
+                ? (uploadingPrescription ? 'Uploading…' : 'Processing…')
+                : 'Complete Sale'}
             </button>
           </div>
         </div>
