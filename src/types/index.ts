@@ -19,7 +19,6 @@ export interface AuthResponse {
   email: string | null;
   fullName: string | null;
   roles: string[];
-  /** Integer PK from AppUsers table — used as PharmacistId when creating sales */
   userId: number | null;
 }
 
@@ -60,6 +59,46 @@ export interface CreateSupplierDto {
   address?: string;
 }
 
+// ── Unit of Measure ───────────────────────────────────────────────────────────
+export interface UnitOfMeasure {
+  unitOfMeasureId: number;
+  name: string;
+  symbol: string;
+  isActive: boolean;
+}
+
+// ── MedicineUnit ──────────────────────────────────────────────────────────────
+export interface MedicineUnit {
+  medicineUnitId: number;
+  medicineId: number;
+  unitOfMeasureId: number;
+  uomName: string;
+  uomSymbol: string;
+  conversionFactorToBase: number;
+  isBaseUnit: boolean;
+  isDefault: boolean;
+  isActive: boolean;
+  unitPrice: number;
+}
+
+export interface MedicineUnitForPos {
+  medicineUnitId: number;
+  uomName: string;
+  uomSymbol: string;
+  unitPrice: number;
+  conversionFactorToBase: number;
+  isDefault: boolean;
+  isBaseUnit: boolean;
+}
+
+export interface CreateMedicineUnitDto {
+  unitOfMeasureId: number;
+  conversionFactorToBase: number;
+  unitPrice: number;
+  isBaseUnit: boolean;
+  isDefault: boolean;
+}
+
 // ── Medicine ─────────────────────────────────────────────────────────────────
 export interface Medicine {
   medicineId: number;
@@ -70,6 +109,8 @@ export interface Medicine {
   manufacturerId?: number | null;
   manufacturerName?: string | null;
   tabletsPerStrip: number;
+  strapsPerBox: number;
+  totalTabletsPerBox: number;
   stripPrice: number;
   tabletPrice: number;
   reorderLevel: number;
@@ -77,6 +118,7 @@ export interface Medicine {
   isActive: boolean;
   totalStockInTablets: number;
   createdAt?: string;
+  units: MedicineUnit[];
 }
 
 export interface CreateMedicineDto {
@@ -85,11 +127,13 @@ export interface CreateMedicineDto {
   categoryId?: number | null;
   manufacturerId?: number | null;
   tabletsPerStrip: number;
+  strapsPerBox: number;
   stripPrice: number;
   tabletPrice: number;
   reorderLevel: number;
   requiresPrescription: boolean;
   isActive: boolean;
+  units?: CreateMedicineUnitDto[];
 }
 
 export interface BulkCreateMedicineItemResult {
@@ -164,21 +208,11 @@ export interface CreateCustomerDto {
 }
 
 // ── Sale ─────────────────────────────────────────────────────────────────────
-export enum SaleUnitType {
-  Tablet = 0,
-  Strip = 1,
-}
-
-export enum PaymentMode {
-  Cash = 0,
-  Card = 1,
-  Online = 2,
-  Credit = 3,
-}
+export type PaymentMode = 'Cash' | 'Card' | 'Online' | 'Credit';
 
 export interface CreateSaleItemDto {
   medicineId: number;
-  saleUnitType: SaleUnitType;
+  medicineUnitId: number;
   quantity: number;
   discountPercent: number;
 }
@@ -197,9 +231,10 @@ export interface SaleItemResponse {
   medicineName: string;
   batchId: number;
   batchNumber: string;
-  saleUnitType: SaleUnitType;
+  medicineUnitId: number;
+  uomName: string;
   quantity: number;
-  tabletsDeducted: number;
+  baseQuantityDeducted: number;
   unitPrice: number;
   discountPercent: number;
   discountAmount: number;
@@ -224,14 +259,15 @@ export interface SaleResponse {
 
 // ── Cart (client-side only) ───────────────────────────────────────────────────
 export interface CartItem {
-  id: string; // uuid for key
+  id: string;
   medicineId: number;
   medicineName: string;
-  saleUnitType: SaleUnitType;
+  medicineUnitId: number;
+  uomName: string;
   quantity: number;
   discountPercent: number;
   unitPrice: number;
-  tabletsPerStrip: number;
+  availableUnits: MedicineUnitForPos[];
 }
 
 // ── Pharmacist (AppUser) ─────────────────────────────────────────────────────
@@ -273,5 +309,80 @@ export interface CreateDisposalRequestDto {
   items: CreateDisposalItemDto[];
 }
 
-// ── Near Expiry (re-uses MedicineBatch) ───────────────────────────────────────
-// MedicineBatchListItemDto from the backend — frontend uses the same MedicineBatch type
+// ── Reports ───────────────────────────────────────────────────────────────────
+export interface SalesSummary {
+  totalSales: number;
+  totalRevenue: number;
+  totalItemsSold: number;
+}
+
+export interface TopMedicine {
+  medicineId: number;
+  medicineName: string;
+  totalQuantitySold: number;
+  totalRevenue: number;
+}
+
+export interface TopManufacturer {
+  manufacturerId: number;
+  manufacturerName: string;
+  totalMedicinesSold: number;
+  totalRevenue: number;
+}
+
+export interface TopSupplier {
+  supplierId: number;
+  supplierName: string;
+  totalBatchesSupplied: number;
+  totalTabletsSupplied: number;
+}
+
+export interface DashboardReport {
+  today: SalesSummary;
+  thisMonth: SalesSummary;
+  topMedicines: TopMedicine[];
+  topManufacturers: TopManufacturer[];
+  topSuppliers: TopSupplier[];
+}
+
+export interface MonthlySalesSummary {
+  year: number;
+  month: number;
+  monthLabel: string;
+  totalSales: number;
+  totalRevenue: number;
+  totalItemsSold: number;
+}
+
+export interface LowStockItem {
+  medicineId: number;
+  medicineName: string;
+  genericName?: string | null;
+  categoryName?: string | null;
+  manufacturerName?: string | null;
+  totalStockInTablets: number;
+  reorderLevel: number;
+  shortfallInTablets: number;
+}
+
+export interface StockConsumptionItem {
+  medicineId: number;
+  medicineName: string;
+  genericName?: string | null;
+  categoryName?: string | null;
+  manufacturerName?: string | null;
+  supplierName?: string | null;
+  totalQuantitySold: number;
+  totalSalesCount: number;
+  totalRevenue: number;
+}
+
+export interface StockConsumptionReport {
+  fromDate?: string | null;
+  toDate?: string | null;
+  supplierId?: number | null;
+  manufacturerId?: number | null;
+  items: StockConsumptionItem[];
+  totalQuantitySold: number;
+  totalRevenue: number;
+}

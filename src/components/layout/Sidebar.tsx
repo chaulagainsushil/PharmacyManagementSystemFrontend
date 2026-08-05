@@ -5,7 +5,7 @@ import { usePathname } from 'next/navigation';
 import {
   LayoutDashboard, Pill, Package, Users, Tag, Building2,
   Truck, ShoppingCart, LogOut, Activity, X, History, UserPlus,
-  FlaskConical, AlertTriangle,
+  FlaskConical, AlertTriangle, BarChart3,
 } from 'lucide-react';
 import { cn } from '@/lib/utils';
 import { useAuth } from '@/context/AuthContext';
@@ -17,6 +17,7 @@ const navItems = [
   { href: '/customers',      label: 'Customers',         icon: Users },
   { href: '/sales',          label: 'Sell Medicine',     icon: ShoppingCart },
   { href: '/sales-history',  label: 'Sales History',     icon: History },
+  { href: '/reports',        label: 'Reports',           icon: BarChart3 },
   { href: '/near-expiry',    label: 'Near Expiry',       icon: AlertTriangle },
   { href: '/disposals',      label: 'Disposal Records',  icon: FlaskConical },
   { href: '/categories',     label: 'Categories',        icon: Tag },

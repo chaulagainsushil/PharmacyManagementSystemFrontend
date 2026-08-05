@@ -9,7 +9,7 @@ import { PageLoader } from '@/components/ui/LoadingSpinner';
 import { saleService } from '@/services/saleService';
 import type { SaleResponse } from '@/types';
 
-const PAYMENT_LABELS: Record<number, string> = { 0: 'Cash', 1: 'Card', 2: 'Online', 3: 'Credit' };
+
 
 export default function SalesHistoryPage() {
   const [sales, setSales]     = useState<SaleResponse[]>([]);
@@ -81,7 +81,7 @@ export default function SalesHistoryPage() {
                     </div>
                   </div>
                   <div className="flex items-center gap-3 pl-4">
-                    <Badge variant="blue">{PAYMENT_LABELS[sale.paymentMode] ?? 'Cash'}</Badge>
+                    <Badge variant="blue">{sale.paymentMode}</Badge>
                     <span className="text-sm font-bold text-gray-900 whitespace-nowrap">
                       Rs {Number(sale.totalAmount).toFixed(2)}
                     </span>
@@ -120,7 +120,10 @@ export default function SalesHistoryPage() {
                               <p className="text-xs text-gray-400">Batch: {item.batchNumber}</p>
                             </td>
                             <td className="py-1.5 text-gray-600">
-                              {item.quantity} {item.saleUnitType === 1 ? 'strip' : 'tab'}
+                              <p>{item.quantity} <span className="rounded bg-blue-50 px-1 py-0.5 text-xs font-medium text-blue-600">{item.uomName || 'unit'}</span></p>
+                              {item.baseQuantityDeducted !== item.quantity && (
+                                <p className="text-xs text-gray-400">{item.baseQuantityDeducted} base units</p>
+                              )}
                             </td>
                             <td className="py-1.5 text-gray-600">Rs {Number(item.unitPrice).toFixed(2)}</td>
                             <td className="py-1.5 text-gray-600">

@@ -1,11 +1,11 @@
 'use client';
 
-import { useEffect, useState, useCallback } from 'react';
+import { useEffect, useState, useCallback, useRef } from 'react';
 import { useForm } from 'react-hook-form';
 import toast from 'react-hot-toast';
 import {
   Plus, Pencil, Trash2, Search, Pill, ListPlus,
-  CheckCircle, XCircle, ChevronDown, ChevronUp,
+  CheckCircle, XCircle, ChevronDown, ChevronUp, X, Settings,
 } from 'lucide-react';
 import { AppLayout } from '@/components/layout/AppLayout';
 import { Modal } from '@/components/ui/Modal';
@@ -13,6 +13,7 @@ import { ConfirmDialog } from '@/components/ui/ConfirmDialog';
 import { Badge } from '@/components/ui/Badge';
 import { FormField, SelectField } from '@/components/ui/FormField';
 import { PageLoader, LoadingSpinner } from '@/components/ui/LoadingSpinner';
+import { UnitsManager } from '@/components/ui/UnitsManager';
 import { medicineService } from '@/services/medicineService';
 import { categoryService } from '@/services/categoryService';
 import { manufacturerService } from '@/services/manufacturerService';
@@ -30,7 +31,7 @@ function newRow(): BulkRow {
     _id: Math.random().toString(36).slice(2),
     name: '', genericName: '',
     categoryId: undefined, manufacturerId: undefined,
-    tabletsPerStrip: 1, stripPrice: 0, tabletPrice: 0,
+    tabletsPerStrip: 1, strapsPerBox: 1, stripPrice: 0, tabletPrice: 0,
     reorderLevel: 10, requiresPrescription: false, isActive: true,
   };
 }
@@ -149,7 +150,9 @@ export default function MedicinesPage() {
   const [categories, setCategories]     = useState<Category[]>([]);
   const [manufacturers, setManufacturers] = useState<Manufacturer[]>([]);
   const [loading, setLoading]           = useState(true);
+  const [searching, setSearching]       = useState(false);
   const [search, setSearch]             = useState('');
+  const debounceRef                     = useRef<ReturnType<typeof setTimeout> | null>(null);
 
   // Single add/edit modal
   const [modalOpen, setModalOpen]   = useState(false);
@@ -160,6 +163,9 @@ export default function MedicinesPage() {
   const [deleteTarget, setDeleteTarget] = useState<Medicine | null>(null);
   const [deleting, setDeleting]         = useState(false);
 
+  // Units modal
+  const [unitsTarget, setUnitsTarget] = useState<Medicine | null>(null);
+
   // Bulk modal
   const [bulkOpen, setBulkOpen]         = useState(false);
   const [bulkRows, setBulkRows]         = useState<BulkRow[]>([]);
@@ -169,14 +175,52 @@ export default function MedicinesPage() {
 
   const { register, handleSubmit, reset, formState: { errors } } = useForm<CreateMedicineDto>();
 
-  const load = useCallback(async () => {
-    const [meds, cats, mfgs] = await Promise.all([
-      medicineService.getAll(), categoryService.getAll(), manufacturerService.getAll(),
+  // Load categories + manufacturers once, and all medicines initially
+  const loadMeta = useCallback(async () => {
+    const [cats, mfgs] = await Promise.all([
+      categoryService.getAll(), manufacturerService.getAll(),
     ]);
-    setMedicines(meds); setCategories(cats); setManufacturers(mfgs);
+    setCategories(cats); setManufacturers(mfgs);
   }, []);
 
-  useEffect(() => { load().finally(() => setLoading(false)); }, [load]);
+  const loadAll = useCallback(async () => {
+    const meds = await medicineService.getAll();
+    setMedicines(meds);
+  }, []);
+
+  useEffect(() => {
+    Promise.all([loadMeta(), loadAll()]).finally(() => setLoading(false));
+  }, [loadMeta, loadAll]);
+
+  // ── Debounced server-side search ──────────────────────────────────────────
+  const handleSearchChange = (value: string) => {
+    setSearch(value);
+    if (debounceRef.current) clearTimeout(debounceRef.current);
+    debounceRef.current = setTimeout(async () => {
+      setSearching(true);
+      try {
+        const results = value.trim()
+          ? await medicineService.search(value.trim())
+          : await medicineService.getAll();
+        setMedicines(results);
+      } catch { /* silently retain last results */ }
+      finally { setSearching(false); }
+    }, 350);
+  };
+
+  const clearSearch = () => {
+    setSearch('');
+    if (debounceRef.current) clearTimeout(debounceRef.current);
+    medicineService.getAll().then(setMedicines).catch(() => {});
+  };
+
+  // Reload (after create/edit/delete) and re-run search if active
+  const reload = useCallback(async () => {
+    const results = search.trim()
+      ? await medicineService.search(search.trim())
+      : await medicineService.getAll();
+    setMedicines(results);
+  }, [search]);
 
   // ── Single add/edit ───────────────────────────────────────────────────────
 
@@ -192,7 +236,8 @@ export default function MedicinesPage() {
       reset({
         name: full.name, genericName: full.genericName ?? undefined,
         categoryId: full.categoryId ?? undefined, manufacturerId: full.manufacturerId ?? undefined,
-        tabletsPerStrip: full.tabletsPerStrip, stripPrice: full.stripPrice,
+        tabletsPerStrip: full.tabletsPerStrip, strapsPerBox: full.strapsPerBox ?? 1,
+        stripPrice: full.stripPrice,
         tabletPrice: full.tabletPrice, reorderLevel: full.reorderLevel,
         requiresPrescription: full.requiresPrescription, isActive: full.isActive,
       });
@@ -205,12 +250,14 @@ export default function MedicinesPage() {
       const payload = {
         ...data,
         categoryId: data.categoryId || null, manufacturerId: data.manufacturerId || null,
-        tabletsPerStrip: Number(data.tabletsPerStrip), stripPrice: Number(data.stripPrice),
+        tabletsPerStrip: Number(data.tabletsPerStrip),
+        strapsPerBox: Number((data as any).strapsPerBox) || 1,
+        stripPrice: Number(data.stripPrice),
         tabletPrice: Number(data.tabletPrice), reorderLevel: Number(data.reorderLevel),
       };
       if (editing) { await medicineService.update(editing.medicineId, payload); toast.success('Medicine updated'); }
       else         { await medicineService.create(payload); toast.success('Medicine created'); }
-      setModalOpen(false); await load();
+      setModalOpen(false); await reload();
     } catch (e: any) { toast.error(e.response?.data?.message ?? 'Something went wrong'); }
     finally { setSaving(false); }
   };
@@ -218,7 +265,7 @@ export default function MedicinesPage() {
   const handleDelete = async () => {
     if (!deleteTarget) return;
     setDeleting(true);
-    try { await medicineService.delete(deleteTarget.medicineId); toast.success('Medicine deleted'); setDeleteTarget(null); await load(); }
+    try { await medicineService.delete(deleteTarget.medicineId); toast.success('Medicine deleted'); setDeleteTarget(null); await reload(); }
     catch (e: any) { toast.error(e.response?.data?.message ?? 'Delete failed'); }
     finally { setDeleting(false); }
   };
@@ -247,18 +294,14 @@ export default function MedicinesPage() {
     try {
       const result = await medicineService.bulkCreate(payload);
       setBulkResults(result.results);
-      if (result.totalCreated > 0) { toast.success(`${result.totalCreated} medicine(s) created`); await load(); }
+      if (result.totalCreated > 0) { toast.success(`${result.totalCreated} medicine(s) created`); await reload(); }
       if (result.totalFailed > 0)  { toast.error(`${result.totalFailed} row(s) failed`); }
     } catch (e: any) { toast.error(e.response?.data?.message ?? 'Bulk create failed'); }
     finally { setBulkSaving(false); }
   };
 
   // ── Filter ────────────────────────────────────────────────────────────────
-
-  const filtered = medicines.filter(m =>
-    m.name.toLowerCase().includes(search.toLowerCase()) ||
-    (m.genericName ?? '').toLowerCase().includes(search.toLowerCase())
-  );
+  // Results are already filtered server-side; `medicines` is the live result set.
 
   if (loading) return <AppLayout title="Medicines"><PageLoader /></AppLayout>;
 
@@ -269,10 +312,23 @@ export default function MedicinesPage() {
       <div className="mb-6 flex flex-col gap-4 sm:flex-row sm:items-center sm:justify-between">
         <div className="relative max-w-xs flex-1">
           <Search className="absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-gray-400" />
-          <input value={search} onChange={e => setSearch(e.target.value)} placeholder="Search medicines…"
-            className="w-full rounded-xl border border-gray-200 bg-white py-2 pl-9 pr-4 text-sm outline-none focus:border-blue-500 focus:ring-2 focus:ring-blue-100" />
+          <input
+            value={search}
+            onChange={e => handleSearchChange(e.target.value)}
+            placeholder="Search by name, generic, category, manufacturer…"
+            className="w-full rounded-xl border border-gray-200 bg-white py-2 pl-9 pr-9 text-sm outline-none focus:border-blue-500 focus:ring-2 focus:ring-blue-100"
+          />
+          {searching && (
+            <LoadingSpinner className="absolute right-3 top-1/2 h-4 w-4 -translate-y-1/2 text-blue-500" />
+          )}
+          {!searching && search && (
+            <button onClick={clearSearch} className="absolute right-3 top-1/2 -translate-y-1/2 text-gray-400 hover:text-gray-600">
+              <X className="h-4 w-4" />
+            </button>
+          )}
         </div>
         <div className="flex items-center gap-2">
+          <span className="text-sm text-gray-400">{medicines.length} medicines</span>
           <button onClick={openCreate}
             className="inline-flex items-center gap-2 rounded-xl bg-indigo-600 px-4 py-2 text-sm font-semibold text-white hover:bg-indigo-700 transition-colors shadow-sm">
             <Plus className="h-4 w-4" /> Add Medicine
@@ -286,12 +342,12 @@ export default function MedicinesPage() {
 
       {/* Mobile cards */}
       <div className="sm:hidden space-y-3">
-        {filtered.length === 0 && (
+        {medicines.length === 0 && (
           <div className="rounded-2xl border border-gray-100 bg-white py-12 text-center text-gray-400">
             <Pill className="mx-auto mb-2 h-8 w-8 text-gray-200" />No medicines found
           </div>
         )}
-        {filtered.map(m => (
+        {medicines.map(m => (
           <div key={m.medicineId} className="rounded-2xl border border-gray-100 bg-white p-4 shadow-sm">
             <div className="flex items-start justify-between">
               <div>
@@ -299,6 +355,7 @@ export default function MedicinesPage() {
                 <p className="text-xs text-gray-500">{m.genericName ?? '—'}</p>
               </div>
               <div className="flex gap-1">
+                <button onClick={() => setUnitsTarget(m)} title="Manage units" className="rounded-lg p-1.5 text-gray-400 hover:bg-indigo-50 hover:text-indigo-600"><Settings className="h-4 w-4" /></button>
                 <button onClick={() => openEdit(m)} className="rounded-lg p-1.5 text-gray-400 hover:bg-blue-50 hover:text-blue-600"><Pencil className="h-4 w-4" /></button>
                 <button onClick={() => setDeleteTarget(m)} className="rounded-lg p-1.5 text-gray-400 hover:bg-red-50 hover:text-red-600"><Trash2 className="h-4 w-4" /></button>
               </div>
@@ -331,19 +388,20 @@ export default function MedicinesPage() {
                 <th className="px-6 py-3">Name</th>
                 <th className="px-6 py-3">Category</th>
                 <th className="px-6 py-3">Stock</th>
+                <th className="px-6 py-3">Units</th>
                 <th className="px-6 py-3">Strip / Tablet</th>
                 <th className="px-6 py-3">Status</th>
                 <th className="px-6 py-3 text-right">Actions</th>
               </tr>
             </thead>
             <tbody className="divide-y divide-slate-100">
-              {filtered.length === 0 && (
+              {medicines.length === 0 && (
                 <tr><td colSpan={6} className="px-6 py-12 text-center text-gray-400">
                   <Pill className="mx-auto mb-2 h-8 w-8 text-gray-200" />
                   No medicines found
                 </td></tr>
               )}
-              {filtered.map(m => (
+              {medicines.map(m => (
                 <tr key={m.medicineId} className="hover:bg-blue-50 transition-colors">
                   <td className="px-6 py-3">
                     <p className="font-medium text-gray-900">{m.name}</p>
@@ -356,6 +414,20 @@ export default function MedicinesPage() {
                     </span>
                     <span className="text-gray-400"> tabs</span>
                   </td>
+                  <td className="px-6 py-3">
+                    {(m.units?.length ?? 0) > 0 ? (
+                      <div className="flex flex-wrap gap-1">
+                        {m.units.filter(u => u.isActive).map(u => (
+                          <span key={u.medicineUnitId}
+                            className={`rounded-full px-2 py-0.5 text-xs font-medium ${u.isDefault ? 'bg-yellow-100 text-yellow-700' : 'bg-gray-100 text-gray-600'}`}>
+                            {u.uomName}
+                          </span>
+                        ))}
+                      </div>
+                    ) : (
+                      <span className="text-xs text-red-400">No units</span>
+                    )}
+                  </td>
                   <td className="px-6 py-3 text-gray-600">
                     Rs {Number(m.stripPrice).toFixed(2)} / Rs {Number(m.tabletPrice).toFixed(2)}
                   </td>
@@ -367,6 +439,8 @@ export default function MedicinesPage() {
                   </td>
                   <td className="px-6 py-3">
                     <div className="flex justify-end gap-1">
+                      <button onClick={() => setUnitsTarget(m)} title="Manage units"
+                        className="rounded-lg p-1.5 text-gray-400 hover:bg-indigo-50 hover:text-indigo-600 transition-colors"><Settings className="h-4 w-4" /></button>
                       <button onClick={() => openEdit(m)} className="rounded-lg p-1.5 text-gray-400 hover:bg-blue-50 hover:text-blue-600 transition-colors"><Pencil className="h-4 w-4" /></button>
                       <button onClick={() => setDeleteTarget(m)} className="rounded-lg p-1.5 text-gray-400 hover:bg-red-50 hover:text-red-600 transition-colors"><Trash2 className="h-4 w-4" /></button>
                     </div>
@@ -392,6 +466,7 @@ export default function MedicinesPage() {
             {manufacturers.map(m => <option key={m.manufacturerId} value={m.manufacturerId}>{m.name}</option>)}
           </SelectField>
           <FormField label="Tablets per Strip *" type="number" min={1} error={errors.tabletsPerStrip?.message} {...register('tabletsPerStrip', { required: true, min: 1 })} />
+          <FormField label="Strips per Box" type="number" min={1} {...register('strapsPerBox' as any)} />
           <FormField label="Strip Price (Rs) *" type="number" step="0.01" min={0} error={errors.stripPrice?.message} {...register('stripPrice', { required: true })} />
           <FormField label="Tablet Price (Rs) *" type="number" step="0.01" min={0} error={errors.tabletPrice?.message} {...register('tabletPrice', { required: true })} />
           <div className="col-span-2 flex gap-6">
@@ -411,6 +486,26 @@ export default function MedicinesPage() {
       <ConfirmDialog open={!!deleteTarget} title="Delete Medicine"
         message={`Delete "${deleteTarget?.name}"? This cannot be undone.`}
         onConfirm={handleDelete} onCancel={() => setDeleteTarget(null)} loading={deleting} />
+
+      {/* ── Units Modal ─────────────────────────────────────────────────────── */}
+      <Modal open={!!unitsTarget} onClose={() => setUnitsTarget(null)}
+        title={`Units — ${unitsTarget?.name ?? ''}`} size="lg">
+        {unitsTarget && (
+          <div className="space-y-3">
+            <p className="text-sm text-gray-500">
+              Manage unit types for this medicine. The <span className="font-semibold text-yellow-600">★ Default</span> unit is shown first in the POS selector.
+              The <span className="font-semibold text-indigo-600">Base</span> unit is how stock is physically counted.
+            </p>
+            <UnitsManager medicineId={unitsTarget.medicineId} />
+            <div className="flex justify-end pt-2 border-t border-gray-100">
+              <button onClick={() => { setUnitsTarget(null); reload(); }}
+                className="rounded-lg bg-blue-600 px-5 py-2 text-sm font-semibold text-white hover:bg-blue-700">
+                Done
+              </button>
+            </div>
+          </div>
+        )}
+      </Modal>
 
       {/* ── Bulk Add Modal ──────────────────────────────────────────────────── */}
       <Modal open={bulkOpen} onClose={closeBulk} title="Add Multiple Medicines" size="lg">

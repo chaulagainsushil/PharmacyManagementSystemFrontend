@@ -22,13 +22,25 @@ export default function NearExpiryPage() {
     try {
       const data = await batchService.getNearExpiry(DAYS);
       setBatches(data);
+    } catch (e: any) {
+      // 401 is handled by the axios interceptor (redirects to login) — ignore here
+      if (e?.response?.status !== 401) {
+        console.error('Near-expiry load error:', e?.message);
+      }
     } finally {
       setLoading(false);
       setRefreshing(false);
     }
   }, []);
 
-  useEffect(() => { load(); }, [load]);
+  useEffect(() => {
+    // Only fetch when a token is present — AppLayout handles redirect if unauthenticated
+    if (typeof window !== 'undefined' && localStorage.getItem('pms_token')) {
+      load();
+    } else {
+      setLoading(false);
+    }
+  }, [load]);
 
   const filtered = batches.filter(b =>
     b.medicineName.toLowerCase().includes(search.toLowerCase()) ||

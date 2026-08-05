@@ -10,33 +10,9 @@ const COMPANY_ADDRESS = 'Satdobato, Lalitpur, Nepal';
 const COMPANY_PAN     = '609847231';
 const COMPANY_PHONE   = '+977-01-5551234';
 
-// A fixed "signature" rendered as stylised SVG text
-function SignatureSVG() {
-  return (
-    <svg width="140" height="48" viewBox="0 0 140 48" xmlns="http://www.w3.org/2000/svg">
-      <path
-        d="M10 36 C20 10, 35 8, 45 22 C55 36, 60 14, 75 18 C90 22, 95 34, 110 28 C120 24, 128 30, 132 36"
-        fill="none"
-        stroke="#1e3a5f"
-        strokeWidth="2"
-        strokeLinecap="round"
-        strokeLinejoin="round"
-      />
-      <path
-        d="M18 40 C30 38, 50 42, 70 40 C90 38, 110 42, 130 40"
-        fill="none"
-        stroke="#1e3a5f"
-        strokeWidth="1.2"
-        strokeLinecap="round"
-        opacity="0.5"
-      />
-    </svg>
-  );
-}
-
 interface Props {
   invoice: SaleResponse;
-  cashDiscount: number; // Rs amount
+  cashDiscount: number;
 }
 
 export function BillPrint({ invoice, cashDiscount }: Props) {
@@ -71,6 +47,7 @@ export function BillPrint({ invoice, cashDiscount }: Props) {
             .footer { display: flex; justify-content: space-between; align-items: flex-end; margin-top: 24px; border-top: 1px dashed #bbb; padding-top: 12px; }
             .sig-label { font-size: 10px; color: #888; margin-top: 4px; text-align: center; }
             .thank-you { font-size: 11px; color: #555; text-align: center; margin-top: 16px; }
+            .uom-badge { background: #e0f2fe; color: #0369a1; border-radius: 3px; padding: 1px 4px; font-size: 10px; font-weight: 600; }
           </style>
         </head>
         <body>${content}</body>
@@ -82,7 +59,6 @@ export function BillPrint({ invoice, cashDiscount }: Props) {
     win.close();
   };
 
-  const paymentLabels = ['Cash', 'Card', 'Online', 'Credit'];
   const grandTotal = Number(invoice.totalAmount) - cashDiscount;
 
   return (
@@ -100,7 +76,7 @@ export function BillPrint({ invoice, cashDiscount }: Props) {
           <div><span>Date: </span><strong>{format(new Date(invoice.saleDate), 'dd MMM yyyy, hh:mm a')}</strong></div>
           <div><span>Customer: </span><strong>{invoice.customerName}</strong></div>
           <div><span>Pharmacist: </span><strong>{invoice.pharmacistName}</strong></div>
-          <div><span>Payment: </span><strong>{paymentLabels[invoice.paymentMode] ?? 'Cash'}</strong></div>
+          <div><span>Payment: </span><strong>{invoice.paymentMode}</strong></div>
         </div>
 
         <table>
@@ -109,6 +85,7 @@ export function BillPrint({ invoice, cashDiscount }: Props) {
               <th>#</th>
               <th>Medicine</th>
               <th>Batch</th>
+              <th>Unit</th>
               <th>Qty</th>
               <th>Unit Price</th>
               <th>Disc%</th>
@@ -121,7 +98,15 @@ export function BillPrint({ invoice, cashDiscount }: Props) {
                 <td>{i + 1}</td>
                 <td>{item.medicineName}</td>
                 <td>{item.batchNumber}</td>
-                <td>{item.quantity} {item.saleUnitType === 1 ? 'strip(s)' : 'tab(s)'}</td>
+                <td>
+                  <span className="uom-badge">{item.uomName || '—'}</span>
+                </td>
+                <td>
+                  {item.quantity}
+                  {item.baseQuantityDeducted !== item.quantity && (
+                    <span style={{ color: '#888', fontSize: 10 }}> ({item.baseQuantityDeducted} base)</span>
+                  )}
+                </td>
                 <td>Rs {Number(item.unitPrice).toFixed(2)}</td>
                 <td>{Number(item.discountPercent).toFixed(0)}%</td>
                 <td style={{ textAlign: 'right' }}>Rs {Number(item.lineTotal).toFixed(2)}</td>
@@ -133,7 +118,10 @@ export function BillPrint({ invoice, cashDiscount }: Props) {
         <div className="totals">
           <div><span>Subtotal</span><span>Rs {Number(invoice.subtotal).toFixed(2)}</span></div>
           {Number(invoice.discountPercent) > 0 && (
-            <div><span>Invoice Disc ({Number(invoice.discountPercent)}%)</span><span>-Rs {Number(invoice.discountAmount).toFixed(2)}</span></div>
+            <div>
+              <span>Invoice Disc ({Number(invoice.discountPercent)}%)</span>
+              <span>-Rs {Number(invoice.discountAmount).toFixed(2)}</span>
+            </div>
           )}
           {cashDiscount > 0 && (
             <div><span>Cash Discount</span><span>-Rs {cashDiscount.toFixed(2)}</span></div>
@@ -144,10 +132,11 @@ export function BillPrint({ invoice, cashDiscount }: Props) {
         <div className="footer">
           <div>
             <p style={{ fontSize: 10, color: '#888' }}>Received By</p>
-            {/* SVG signature */}
             <svg width="140" height="48" viewBox="0 0 140 48" xmlns="http://www.w3.org/2000/svg">
-              <path d="M10 36 C20 10, 35 8, 45 22 C55 36, 60 14, 75 18 C90 22, 95 34, 110 28 C120 24, 128 30, 132 36" fill="none" stroke="#1e3a5f" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"/>
-              <path d="M18 40 C30 38, 50 42, 70 40 C90 38, 110 42, 130 40" fill="none" stroke="#1e3a5f" strokeWidth="1.2" strokeLinecap="round" opacity="0.5"/>
+              <path d="M10 36 C20 10, 35 8, 45 22 C55 36, 60 14, 75 18 C90 22, 95 34, 110 28 C120 24, 128 30, 132 36"
+                fill="none" stroke="#1e3a5f" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"/>
+              <path d="M18 40 C30 38, 50 42, 70 40 C90 38, 110 42, 130 40"
+                fill="none" stroke="#1e3a5f" strokeWidth="1.2" strokeLinecap="round" opacity="0.5"/>
             </svg>
             <p className="sig-label">Authorised Signature</p>
           </div>
@@ -160,7 +149,7 @@ export function BillPrint({ invoice, cashDiscount }: Props) {
         <p className="thank-you">*** This is a computer generated bill ***</p>
       </div>
 
-      {/* Print trigger button */}
+      {/* Print button */}
       <button
         onClick={handlePrint}
         className="inline-flex items-center gap-2 rounded-xl border border-blue-200 bg-blue-50 px-5 py-2.5 text-sm font-semibold text-blue-700 hover:bg-blue-100 transition-colors"

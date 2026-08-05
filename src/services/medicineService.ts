@@ -3,6 +3,8 @@ import type { Medicine, CreateMedicineDto, BulkCreateMedicineResult } from '@/ty
 
 export const medicineService = {
   getAll: () => api.get<Medicine[]>('/api/medicine').then((r) => r.data),
+  search: (q: string) =>
+    api.get<Medicine[]>(`/api/medicine/search?q=${encodeURIComponent(q)}`).then((r) => r.data),
   getById: (id: number) => api.get<Medicine>(`/api/medicine/${id}`).then((r) => r.data),
   create: (dto: CreateMedicineDto) =>
     api.post<Medicine>('/api/medicine', dto).then((r) => r.data),

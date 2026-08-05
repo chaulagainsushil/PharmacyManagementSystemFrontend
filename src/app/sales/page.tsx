@@ -3,8 +3,8 @@
 import { useEffect, useState, useCallback, useRef } from 'react';
 import toast from 'react-hot-toast';
 import {
-  ShoppingCart, Plus, User, CreditCard,
-  Banknote, Smartphone, Receipt, CheckCircle, X, Percent, Search,
+  ShoppingCart, Plus, User, CreditCard, Banknote,
+  Smartphone, Receipt, CheckCircle, X, Percent, Search,
   FileImage, Upload, Trash2,
 } from 'lucide-react';
 import { AppLayout } from '@/components/layout/AppLayout';
@@ -23,50 +23,48 @@ import type {
 import { cn } from '@/lib/utils';
 import { format } from 'date-fns';
 
-// ── Constants ─────────────────────────────────────────────────────────────────
+// ── Constants ──────────────────────────────────────────────────────────────────
 
 const WALKIN_PHONE = '0000000000';
 const WALKIN_NAME  = 'Walk-in Customer';
 
-const PAYMENT_MODES: { value: number; label: string; icon: React.ElementType }[] = [
-  { value: 0, label: 'Cash',   icon: Banknote },
-  { value: 1, label: 'Card',   icon: CreditCard },
-  { value: 2, label: 'Online', icon: Smartphone },
-  { value: 3, label: 'Credit', icon: Receipt },
+const PAYMENT_MODES: { value: PaymentMode; label: string; icon: React.ElementType }[] = [
+  { value: 'Cash',   label: 'Cash',   icon: Banknote    },
+  { value: 'Card',   label: 'Card',   icon: CreditCard  },
+  { value: 'Online', label: 'Online', icon: Smartphone  },
+  { value: 'Credit', label: 'Credit', icon: Receipt     },
 ];
 
-function generateId() {
-  return Math.random().toString(36).slice(2);
-}
+function generateId() { return Math.random().toString(36).slice(2); }
 
 function emptyRow(): CartItem {
   return {
-    id: generateId(),
-    medicineId: 0,
-    medicineName: '',
-    saleUnitType: 1,
-    quantity: 1,
+    id:             generateId(),
+    medicineId:     0,
+    medicineName:   '',
+    medicineUnitId: 0,
+    uomName:        '',
+    quantity:       1,
     discountPercent: 0,
-    unitPrice: 0,
-    tabletsPerStrip: 1,
+    unitPrice:      0,
+    availableUnits: [],
   };
 }
 
-// ── Page ──────────────────────────────────────────────────────────────────────
+// ── Page ───────────────────────────────────────────────────────────────────────
 
 export default function SalesPage() {
   const { user } = useAuth();
 
-  const [medicines, setMedicines] = useState<Medicine[]>([]);
-  const [customers, setCustomers] = useState<Customer[]>([]);
-  const [loading, setLoading]     = useState(true);
-
-  const [rows, setRows]           = useState<CartItem[]>([emptyRow()]);
+  const [pickedMedicines, setPickedMedicines] = useState<Medicine[]>([]);
+  const [customers, setCustomers]             = useState<Customer[]>([]);
+  const [loading, setLoading]                 = useState(true);
+  const [rows, setRows]                       = useState<CartItem[]>([emptyRow()]);
 
   // Invoice-level
-  const [discount, setDiscount]         = useState(0);       // % discount
-  const [cashDiscount, setCashDiscount] = useState(0);       // Rs flat cash discount
-  const [paymentMode, setPaymentMode]   = useState<number>(0);
+  const [discount, setDiscount]         = useState(0);
+  const [cashDiscount, setCashDiscount] = useState(0);
+  const [paymentMode, setPaymentMode]   = useState<PaymentMode>('Cash');
 
   // Customer
   const [selectedCustomer, setSelectedCustomer] = useState<Customer | null>(null);
@@ -74,57 +72,52 @@ export default function SalesPage() {
   const [customerDropdown, setCustomerDropdown] = useState(false);
 
   // Prescription upload
-  const [prescriptionFile, setPrescriptionFile] = useState<File | null>(null);
+  const [prescriptionFile, setPrescriptionFile]       = useState<File | null>(null);
   const [prescriptionPreview, setPrescriptionPreview] = useState<string | null>(null);
   const [uploadingPrescription, setUploadingPrescription] = useState(false);
   const fileInputRef = useRef<HTMLInputElement>(null);
 
-  // Invoice
-  const [invoiceOpen, setInvoiceOpen] = useState(false);
-  const [invoice, setInvoice]         = useState<SaleResponse | null>(null);
+  // Invoice modal
+  const [invoiceOpen, setInvoiceOpen]             = useState(false);
+  const [invoice, setInvoice]                     = useState<SaleResponse | null>(null);
   const [invoiceCashDiscount, setInvoiceCashDiscount] = useState(0);
-  const [submitting, setSubmitting]   = useState(false);
+  const [submitting, setSubmitting]               = useState(false);
 
   const load = useCallback(async () => {
-    const [meds, custs] = await Promise.all([
-      medicineService.getAll(),
-      customerService.getAll(),
-    ]);
-    setMedicines(meds.filter(m => m.isActive));
+    const custs = await customerService.getAll();
     setCustomers(custs);
   }, []);
 
   useEffect(() => { load().finally(() => setLoading(false)); }, [load]);
 
-  // ── Prescription: check if any row needs it ───────────────────────────────
+  const registerMedicine = useCallback((med: Medicine) => {
+    setPickedMedicines((prev) => {
+      if (prev.some((m) => m.medicineId === med.medicineId)) return prev;
+      return [...prev, med];
+    });
+  }, []);
 
-  const validRows = rows.filter(r => r.medicineId !== 0);
-  const requiresPrescription = validRows.some(r => {
-    const med = medicines.find(m => m.medicineId === r.medicineId);
+  // ── Prescription helpers ───────────────────────────────────────────────────
+
+  const validRows = rows.filter((r) => r.medicineId !== 0 && r.medicineUnitId !== 0);
+  const requiresPrescription = validRows.some((r) => {
+    const med = pickedMedicines.find((m) => m.medicineId === r.medicineId);
     return med?.requiresPrescription;
   });
 
   const handleFileSelect = (e: React.ChangeEvent<HTMLInputElement>) => {
     const file = e.target.files?.[0];
     if (!file) return;
-
     const allowed = ['image/jpeg', 'image/png', 'image/webp', 'application/pdf'];
-    if (!allowed.includes(file.type)) {
-      toast.error('Only JPG, PNG, WebP, or PDF files are accepted.');
-      return;
-    }
-    if (file.size > 10 * 1024 * 1024) {
-      toast.error('File size must not exceed 10 MB.');
-      return;
-    }
-
+    if (!allowed.includes(file.type)) { toast.error('Only JPG, PNG, WebP, or PDF files are accepted.'); return; }
+    if (file.size > 10 * 1024 * 1024) { toast.error('File size must not exceed 10 MB.'); return; }
     setPrescriptionFile(file);
     if (file.type.startsWith('image/')) {
       const reader = new FileReader();
       reader.onload = (ev) => setPrescriptionPreview(ev.target?.result as string);
       reader.readAsDataURL(file);
     } else {
-      setPrescriptionPreview(null); // PDF — no preview
+      setPrescriptionPreview(null);
     }
   };
 
@@ -134,50 +127,42 @@ export default function SalesPage() {
     if (fileInputRef.current) fileInputRef.current.value = '';
   };
 
-  // ── Walk-in customer helper ───────────────────────────────────────────────
+  // ── Walk-in customer ───────────────────────────────────────────────────────
 
   const ensureWalkInCustomer = async (): Promise<number> => {
     const existing = customers.find(
-      c => c.phoneNumber === WALKIN_PHONE || c.fullName === WALKIN_NAME
+      (c) => c.phoneNumber === WALKIN_PHONE || c.fullName === WALKIN_NAME
     );
     if (existing) return existing.customerId;
-
-    const created = await customerService.create({
-      fullName: WALKIN_NAME,
-      phoneNumber: WALKIN_PHONE,
-    });
-    setCustomers(prev => [...prev, created]);
+    const created = await customerService.create({ fullName: WALKIN_NAME, phoneNumber: WALKIN_PHONE });
+    setCustomers((prev) => [...prev, created]);
     return created.customerId;
   };
 
-  // ── Row helpers ───────────────────────────────────────────────────────────
+  // ── Row helpers ────────────────────────────────────────────────────────────
 
-  const addRow = () => setRows(prev => [...prev, emptyRow()]);
-
+  const addRow    = () => setRows((prev) => [...prev, emptyRow()]);
   const updateRow = (id: string, updated: Partial<CartItem>) =>
-    setRows(prev => prev.map(r => r.id === id ? { ...r, ...updated } : r));
-
+    setRows((prev) => prev.map((r) => (r.id === id ? { ...r, ...updated } : r)));
   const removeRow = (id: string) =>
-    setRows(prev => prev.length === 1 ? [emptyRow()] : prev.filter(r => r.id !== id));
+    setRows((prev) => (prev.length === 1 ? [emptyRow()] : prev.filter((r) => r.id !== id)));
 
-  // ── Calculations ──────────────────────────────────────────────────────────
+  // ── Calculations ───────────────────────────────────────────────────────────
 
-  const lineTotal = (r: CartItem) =>
-    r.medicineId === 0 ? 0 : r.quantity * r.unitPrice * (1 - r.discountPercent / 100);
-
+  const lineTotal   = (r: CartItem) =>
+    r.medicineId === 0 || r.medicineUnitId === 0
+      ? 0
+      : r.quantity * r.unitPrice * (1 - r.discountPercent / 100);
   const subtotal    = validRows.reduce((s, r) => s + lineTotal(r), 0);
   const discountAmt = subtotal * (discount / 100);
   const afterPct    = subtotal - discountAmt;
   const total       = Math.max(0, afterPct - cashDiscount);
 
-  // ── Submit ────────────────────────────────────────────────────────────────
+  // ── Submit ─────────────────────────────────────────────────────────────────
 
   const handleSell = async () => {
     if (validRows.length === 0) { toast.error('Add at least one medicine'); return; }
-    if (!user?.userId) {
-      toast.error('Cannot identify pharmacist. Please log out and back in.');
-      return;
-    }
+    if (!user?.userId) { toast.error('Cannot identify pharmacist. Please log out and back in.'); return; }
     if (requiresPrescription && !prescriptionFile) {
       toast.error('Please upload a prescription — one or more medicines require it.');
       return;
@@ -185,23 +170,19 @@ export default function SalesPage() {
 
     setSubmitting(true);
     try {
-      // Upload prescription if provided
       if (requiresPrescription && prescriptionFile) {
         setUploadingPrescription(true);
-        try {
-          await medicineService.uploadPrescription(prescriptionFile);
-        } finally {
-          setUploadingPrescription(false);
-        }
+        try { await medicineService.uploadPrescription(prescriptionFile); }
+        finally { setUploadingPrescription(false); }
       }
 
       const customerId = selectedCustomer
         ? selectedCustomer.customerId
         : await ensureWalkInCustomer();
 
-      const items: CreateSaleItemDto[] = validRows.map(r => ({
+      const items: CreateSaleItemDto[] = validRows.map((r) => ({
         medicineId:      r.medicineId,
-        saleUnitType:    r.saleUnitType,
+        medicineUnitId:  r.medicineUnitId,
         quantity:        r.quantity,
         discountPercent: r.discountPercent,
       }));
@@ -210,7 +191,7 @@ export default function SalesPage() {
         customerId,
         pharmacistId:    user.userId,
         discountPercent: discount,
-        paymentMode:     paymentMode as PaymentMode,
+        paymentMode,
         items,
       };
 
@@ -219,13 +200,14 @@ export default function SalesPage() {
       setInvoiceCashDiscount(cashDiscount);
       setInvoiceOpen(true);
 
-      // Reset form
+      // Reset
       setRows([emptyRow()]);
       setSelectedCustomer(null);
       setDiscount(0);
       setCashDiscount(0);
-      setPaymentMode(0);
+      setPaymentMode('Cash');
       clearPrescription();
+      setPickedMedicines([]);
       toast.success(`Sale ${result.invoiceNumber} completed!`);
     } catch (e: any) {
       toast.error(e.response?.data?.message ?? 'Sale failed');
@@ -234,9 +216,10 @@ export default function SalesPage() {
     }
   };
 
-  const filteredCustomers = customers.filter(c =>
-    c.fullName.toLowerCase().includes(customerSearch.toLowerCase()) ||
-    c.phoneNumber.includes(customerSearch)
+  const filteredCustomers = customers.filter(
+    (c) =>
+      c.fullName.toLowerCase().includes(customerSearch.toLowerCase()) ||
+      c.phoneNumber.includes(customerSearch)
   );
 
   if (loading) {
@@ -253,10 +236,11 @@ export default function SalesPage() {
     <AppLayout title="Sell Medicine">
       <div className="space-y-5">
 
-        {/* ── Customer Picker ─────────────────────────────────────────────── */}
+        {/* ── Customer Picker ──────────────────────────────────────────────── */}
         <div className="rounded-2xl border border-gray-100 bg-white p-4 shadow-sm">
           <label className="mb-2 flex items-center gap-2 text-sm font-semibold text-gray-700">
-            <User className="h-4 w-4 text-blue-500" /> Customer
+            <User className="h-4 w-4 text-blue-500" />
+            Customer
             <span className="ml-1 text-xs font-normal text-gray-400">(leave blank for walk-in)</span>
           </label>
           {selectedCustomer ? (
@@ -274,17 +258,17 @@ export default function SalesPage() {
               <Search className="absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-gray-400" />
               <input
                 value={customerSearch}
-                onChange={e => { setCustomerSearch(e.target.value); setCustomerDropdown(true); }}
+                onChange={(e) => { setCustomerSearch(e.target.value); setCustomerDropdown(true); }}
                 onFocus={() => setCustomerDropdown(true)}
                 placeholder="Search by name or phone…"
                 className="w-full rounded-xl border border-gray-200 py-2.5 pl-9 pr-4 text-sm outline-none focus:border-blue-500 focus:ring-2 focus:ring-blue-100"
               />
               {customerDropdown && customerSearch.length > 0 && (
-                <div className="absolute z-10 mt-1 w-full rounded-xl border border-gray-100 bg-white shadow-lg max-h-48 overflow-y-auto">
+                <div className="absolute z-10 mt-1 w-full max-h-48 overflow-y-auto rounded-xl border border-gray-100 bg-white shadow-lg">
                   {filteredCustomers.length === 0 && (
                     <p className="px-4 py-3 text-sm text-gray-400">No customers found</p>
                   )}
-                  {filteredCustomers.map(c => (
+                  {filteredCustomers.map((c) => (
                     <button
                       key={c.customerId}
                       type="button"
@@ -323,11 +307,11 @@ export default function SalesPage() {
           </div>
 
           <div className="overflow-x-auto">
-            <table className="w-full text-sm min-w-[560px]">
+            <table className="w-full text-sm min-w-[600px]">
               <thead>
                 <tr className="bg-gray-50 text-xs font-semibold uppercase tracking-wide text-gray-500">
                   <th className="px-3 py-2 text-left w-64">Medicine</th>
-                  <th className="px-3 py-2 text-left w-32">Unit</th>
+                  <th className="px-3 py-2 text-left w-36">Unit Type</th>
                   <th className="px-3 py-2 text-left w-32">Qty</th>
                   <th className="px-3 py-2 text-left w-28">Disc %</th>
                   <th className="px-3 py-2 text-right w-28">Total</th>
@@ -335,13 +319,14 @@ export default function SalesPage() {
                 </tr>
               </thead>
               <tbody>
-                {rows.map(row => (
+                {rows.map((row) => (
                   <MedicineRow
                     key={row.id}
                     row={row}
-                    medicines={medicines}
+                    medicines={pickedMedicines}
                     onChange={updateRow}
                     onRemove={removeRow}
+                    onMedicineSelect={registerMedicine}
                   />
                 ))}
               </tbody>
@@ -349,24 +334,22 @@ export default function SalesPage() {
           </div>
         </div>
 
-        {/* ── Prescription Upload (only when required) ─────────────────────── */}
+        {/* ── Prescription Upload ──────────────────────────────────────────── */}
         {requiresPrescription && (
           <div className="rounded-2xl border-2 border-purple-200 bg-purple-50 p-4 shadow-sm">
             <div className="flex items-center gap-2 mb-3">
               <FileImage className="h-5 w-5 text-purple-600" />
               <h3 className="font-semibold text-purple-900">Prescription Required</h3>
               <span className="rounded bg-purple-100 px-2 py-0.5 text-xs font-bold text-purple-700">Rx</span>
-              <span className="ml-1 text-xs text-purple-500">One or more medicines require a valid prescription.</span>
+              <span className="ml-1 text-xs text-purple-500">
+                One or more medicines require a valid prescription.
+              </span>
             </div>
-
             {prescriptionFile ? (
               <div className="flex items-center gap-4">
                 {prescriptionPreview ? (
-                  <img
-                    src={prescriptionPreview}
-                    alt="Prescription preview"
-                    className="h-24 w-24 rounded-xl object-cover border border-purple-200"
-                  />
+                  <img src={prescriptionPreview} alt="Prescription preview"
+                    className="h-24 w-24 rounded-xl object-cover border border-purple-200" />
                 ) : (
                   <div className="flex h-24 w-24 items-center justify-center rounded-xl bg-purple-100 border border-purple-200">
                     <FileImage className="h-8 w-8 text-purple-400" />
@@ -375,29 +358,18 @@ export default function SalesPage() {
                 <div className="flex-1">
                   <p className="text-sm font-medium text-gray-800">{prescriptionFile.name}</p>
                   <p className="text-xs text-gray-400">{(prescriptionFile.size / 1024).toFixed(1)} KB</p>
-                  <button
-                    type="button"
-                    onClick={clearPrescription}
-                    className="mt-2 inline-flex items-center gap-1 rounded-lg border border-red-200 bg-white px-3 py-1 text-xs font-medium text-red-600 hover:bg-red-50 transition-colors"
-                  >
+                  <button type="button" onClick={clearPrescription}
+                    className="mt-2 inline-flex items-center gap-1 rounded-lg border border-red-200 bg-white px-3 py-1 text-xs font-medium text-red-600 hover:bg-red-50 transition-colors">
                     <Trash2 className="h-3 w-3" /> Remove
                   </button>
                 </div>
               </div>
             ) : (
               <div>
-                <input
-                  ref={fileInputRef}
-                  type="file"
-                  accept=".jpg,.jpeg,.png,.webp,.pdf"
-                  className="hidden"
-                  onChange={handleFileSelect}
-                />
-                <button
-                  type="button"
-                  onClick={() => fileInputRef.current?.click()}
-                  className="inline-flex items-center gap-2 rounded-xl border-2 border-dashed border-purple-300 bg-white px-6 py-4 text-sm font-medium text-purple-600 hover:border-purple-500 hover:bg-purple-50 transition-colors"
-                >
+                <input ref={fileInputRef} type="file" accept=".jpg,.jpeg,.png,.webp,.pdf"
+                  className="hidden" onChange={handleFileSelect} />
+                <button type="button" onClick={() => fileInputRef.current?.click()}
+                  className="inline-flex items-center gap-2 rounded-xl border-2 border-dashed border-purple-300 bg-white px-6 py-4 text-sm font-medium text-purple-600 hover:border-purple-500 hover:bg-purple-50 transition-colors">
                   <Upload className="h-5 w-5" />
                   Click to upload prescription (JPG, PNG, WebP, PDF — max 10 MB)
                 </button>
@@ -408,31 +380,25 @@ export default function SalesPage() {
 
         {/* ── Summary + Payment ────────────────────────────────────────────── */}
         <div className="rounded-2xl border border-gray-100 bg-white p-5 shadow-sm space-y-4">
-
-          {/* Discounts row */}
+          {/* Discounts */}
           <div className="flex flex-wrap items-center gap-6">
-            {/* % invoice discount */}
             <div className="flex items-center gap-2">
               <Percent className="h-4 w-4 text-gray-400 flex-shrink-0" />
               <label className="text-sm text-gray-600">Invoice Discount</label>
               <input
-                type="number" min={0} max={100}
-                value={discount}
-                onChange={e => setDiscount(Math.min(100, Math.max(0, Number(e.target.value))))}
+                type="number" min={0} max={100} value={discount}
+                onChange={(e) => setDiscount(Math.min(100, Math.max(0, Number(e.target.value))))}
                 className="w-16 rounded-lg border border-gray-200 px-2 py-1 text-center text-sm outline-none focus:border-blue-500"
               />
               <span className="text-sm text-gray-400">%</span>
             </div>
-
-            {/* Cash discount (Rs flat) */}
             <div className="flex items-center gap-2">
               <Banknote className="h-4 w-4 text-gray-400 flex-shrink-0" />
               <label className="text-sm text-gray-600">Cash Discount</label>
               <span className="text-sm text-gray-400">Rs</span>
               <input
-                type="number" min={0}
-                value={cashDiscount}
-                onChange={e => setCashDiscount(Math.max(0, Number(e.target.value)))}
+                type="number" min={0} value={cashDiscount}
+                onChange={(e) => setCashDiscount(Math.max(0, Number(e.target.value)))}
                 className="w-24 rounded-lg border border-gray-200 px-2 py-1 text-center text-sm outline-none focus:border-blue-500"
               />
             </div>
@@ -442,7 +408,7 @@ export default function SalesPage() {
           <div>
             <p className="mb-2 text-sm font-medium text-gray-600">Payment Mode</p>
             <div className="flex flex-wrap gap-2">
-              {PAYMENT_MODES.map(pm => (
+              {PAYMENT_MODES.map((pm) => (
                 <button
                   key={pm.value}
                   type="button"
@@ -461,11 +427,12 @@ export default function SalesPage() {
             </div>
           </div>
 
-          {/* Totals + Complete */}
+          {/* Totals + Complete button */}
           <div className="flex items-end justify-between gap-4 pt-1">
             <div className="flex-1 rounded-xl bg-gray-50 p-4 space-y-1 text-sm">
               <div className="flex justify-between text-gray-600">
-                <span>Subtotal</span><span>Rs {subtotal.toFixed(2)}</span>
+                <span>Subtotal</span>
+                <span>Rs {subtotal.toFixed(2)}</span>
               </div>
               {discount > 0 && (
                 <div className="flex justify-between text-orange-600">
@@ -480,20 +447,27 @@ export default function SalesPage() {
                 </div>
               )}
               <div className="flex justify-between border-t border-gray-200 pt-2 font-bold text-base text-gray-900">
-                <span>Total</span><span>Rs {total.toFixed(2)}</span>
+                <span>Total</span>
+                <span>Rs {total.toFixed(2)}</span>
               </div>
             </div>
 
             <button
               onClick={handleSell}
-              disabled={submitting || validRows.length === 0 || (requiresPrescription && !prescriptionFile)}
+              disabled={
+                submitting ||
+                validRows.length === 0 ||
+                (requiresPrescription && !prescriptionFile)
+              }
               className="inline-flex items-center gap-2 rounded-xl bg-green-600 px-8 py-3 text-sm font-bold text-white hover:bg-green-700 disabled:opacity-50 transition-colors shadow-sm whitespace-nowrap"
             >
+              {submitting ? (
+                <LoadingSpinner className="h-4 w-4 text-white" />
+              ) : (
+                <CheckCircle className="h-4 w-4" />
+              )}
               {submitting
-                ? <LoadingSpinner className="h-4 w-4 text-white" />
-                : <CheckCircle className="h-4 w-4" />}
-              {submitting
-                ? (uploadingPrescription ? 'Uploading…' : 'Processing…')
+                ? uploadingPrescription ? 'Uploading…' : 'Processing…'
                 : 'Complete Sale'}
             </button>
           </div>
@@ -519,7 +493,7 @@ export default function SalesPage() {
                 { label: 'Customer',   value: invoice.customerName },
                 { label: 'Date',       value: format(new Date(invoice.saleDate), 'dd MMM yyyy, hh:mm a') },
                 { label: 'Pharmacist', value: invoice.pharmacistName },
-                { label: 'Payment',    value: PAYMENT_MODES.find(p => p.value === invoice.paymentMode)?.label ?? 'Cash' },
+                { label: 'Payment',    value: invoice.paymentMode },
               ].map(({ label, value }) => (
                 <div key={label} className="rounded-xl border border-gray-100 p-3">
                   <p className="text-xs text-gray-400 mb-1">{label}</p>
@@ -528,7 +502,7 @@ export default function SalesPage() {
               ))}
             </div>
 
-            {/* Items table */}
+            {/* Items */}
             <div className="rounded-xl border border-gray-100 overflow-hidden">
               <table className="w-full text-sm">
                 <thead>
@@ -540,16 +514,30 @@ export default function SalesPage() {
                   </tr>
                 </thead>
                 <tbody className="divide-y divide-gray-50">
-                  {invoice.items.map(item => (
+                  {invoice.items.map((item) => (
                     <tr key={item.saleItemId}>
                       <td className="px-4 py-2.5">
                         <p className="font-medium text-gray-900">{item.medicineName}</p>
-                        <p className="text-xs text-gray-400">Batch: {item.batchNumber}</p>
+                        <p className="text-xs text-gray-400">
+                          Batch: {item.batchNumber}
+                          {item.uomName && (
+                            <span className="ml-2 rounded bg-blue-50 px-1.5 py-0.5 text-blue-600 font-medium">
+                              {item.uomName}
+                            </span>
+                          )}
+                        </p>
+                        {item.baseQuantityDeducted !== item.quantity && (
+                          <p className="text-xs text-gray-400">
+                            ({item.baseQuantityDeducted} base units deducted)
+                          </p>
+                        )}
                       </td>
                       <td className="px-4 py-2.5 text-gray-600">
-                        {item.quantity} {item.saleUnitType === 1 ? 'strip(s)' : 'tab(s)'}
+                        {item.quantity} {item.uomName || 'unit(s)'}
                       </td>
-                      <td className="px-4 py-2.5 text-gray-600">Rs {Number(item.unitPrice).toFixed(2)}</td>
+                      <td className="px-4 py-2.5 text-gray-600">
+                        Rs {Number(item.unitPrice).toFixed(2)}
+                      </td>
                       <td className="px-4 py-2.5 text-right font-semibold text-gray-900">
                         Rs {Number(item.lineTotal).toFixed(2)}
                       </td>
