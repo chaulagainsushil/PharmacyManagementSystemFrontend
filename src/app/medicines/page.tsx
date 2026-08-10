@@ -19,6 +19,7 @@ import { UnitsManager } from '@/components/ui/UnitsManager';
 import { medicineService } from '@/services/medicineService';
 import { categoryService } from '@/services/categoryService';
 import { manufacturerService } from '@/services/manufacturerService';
+import { uomService } from '@/services/uomService';
 import { useAuth } from '@/context/AuthContext';
 import type {
   Medicine, CreateMedicineDto, Category, Manufacturer,
@@ -113,6 +114,150 @@ function MedicineLimitModal({ open, onClose }: { open: boolean; onClose: () => v
 }
 
 // ── Types ─────────────────────────────────────────────────────────────────────
+
+// ── Inline Unit types & helpers ───────────────────────────────────────────────
+
+interface InlineUnit {
+  id: string;         // client-only key
+  name: string;       // UoM name, e.g. "Strip"
+  symbol: string;     // UoM symbol, e.g. "strip"
+  price: string;      // unit selling price
+  conversionFactor: string; // how many base units = 1 of this unit
+  isBase: boolean;    // is this the base/smallest unit?
+  isDefault: boolean; // shown first in POS
+}
+
+function defaultInlineUnits(): InlineUnit[] {
+  return [
+    { id: '1', name: 'Tablet', symbol: 'tab',   price: '',   conversionFactor: '1',  isBase: true,  isDefault: false },
+    { id: '2', name: 'Strip',  symbol: 'strip', price: '',   conversionFactor: '10', isBase: false, isDefault: true  },
+  ];
+}
+
+interface InlineUnitsEditorProps {
+  units: InlineUnit[];
+  onChange: (units: InlineUnit[]) => void;
+}
+
+function InlineUnitsEditor({ units, onChange }: InlineUnitsEditorProps) {
+  const update = (id: string, field: keyof InlineUnit, value: string | boolean) => {
+    onChange(units.map(u => {
+      if (u.id !== id) {
+        // Only one default and one base at a time
+        if (field === 'isDefault' && value === true) return { ...u, isDefault: false };
+        if (field === 'isBase'    && value === true) return { ...u, isBase: false, conversionFactor: u.conversionFactor };
+        return u;
+      }
+      const updated = { ...u, [field]: value };
+      if (field === 'isBase' && value === true) updated.conversionFactor = '1';
+      return updated;
+    }));
+  };
+
+  return (
+    <div className="rounded-xl border border-indigo-100 bg-indigo-50/50 p-4 space-y-3">
+      <div className="flex items-center justify-between">
+        <div>
+          <p className="text-sm font-semibold text-indigo-800">Units of Sale</p>
+          <p className="text-xs text-indigo-500 mt-0.5">
+            Define how this medicine is sold (e.g. Tablet + Strip). One must be the <span className="font-medium">base</span>, one the <span className="font-medium">default</span> in POS.
+          </p>
+        </div>
+      </div>
+
+      <div className="space-y-2">
+        {units.map((u, idx) => (
+          <div key={u.id} className="rounded-lg border border-indigo-100 bg-white p-3 space-y-2">
+            {/* Row header */}
+            <div className="flex items-center justify-between">
+              <span className="text-xs font-semibold text-gray-500 uppercase tracking-wide">Unit {idx + 1}</span>
+              <div className="flex gap-3">
+                {/* Base toggle */}
+                <label className="flex items-center gap-1.5 cursor-pointer select-none">
+                  <input
+                    type="radio"
+                    name="baseUnit"
+                    checked={u.isBase}
+                    onChange={() => update(u.id, 'isBase', true)}
+                    className="h-3.5 w-3.5 accent-indigo-600"
+                  />
+                  <span className={`text-xs font-medium ${u.isBase ? 'text-indigo-700' : 'text-gray-400'}`}>Base</span>
+                </label>
+                {/* Default toggle */}
+                <label className="flex items-center gap-1.5 cursor-pointer select-none">
+                  <input
+                    type="radio"
+                    name="defaultUnit"
+                    checked={u.isDefault}
+                    onChange={() => update(u.id, 'isDefault', true)}
+                    className="h-3.5 w-3.5 accent-yellow-500"
+                  />
+                  <span className={`text-xs font-medium ${u.isDefault ? 'text-yellow-600' : 'text-gray-400'}`}>★ Default</span>
+                </label>
+              </div>
+            </div>
+
+            {/* Fields */}
+            <div className="grid grid-cols-4 gap-2">
+              <div className="col-span-2">
+                <label className="block text-xs text-gray-500 mb-1">Unit Name *</label>
+                <input
+                  type="text"
+                  placeholder="e.g. Tablet"
+                  value={u.name}
+                  onChange={e => update(u.id, 'name', e.target.value)}
+                  className="w-full rounded-lg border border-gray-200 px-2 py-1.5 text-sm outline-none focus:border-indigo-400 focus:ring-2 focus:ring-indigo-100"
+                />
+              </div>
+              <div>
+                <label className="block text-xs text-gray-500 mb-1">Symbol</label>
+                <input
+                  type="text"
+                  placeholder="tab"
+                  value={u.symbol}
+                  onChange={e => update(u.id, 'symbol', e.target.value)}
+                  className="w-full rounded-lg border border-gray-200 px-2 py-1.5 text-sm outline-none focus:border-indigo-400 focus:ring-2 focus:ring-indigo-100"
+                />
+              </div>
+              <div>
+                <label className="block text-xs text-gray-500 mb-1">Price (Rs) *</label>
+                <input
+                  type="number"
+                  min={0} step="0.01"
+                  placeholder="0.00"
+                  value={u.price}
+                  onChange={e => update(u.id, 'price', e.target.value)}
+                  className="w-full rounded-lg border border-gray-200 px-2 py-1.5 text-sm outline-none focus:border-indigo-400 focus:ring-2 focus:ring-indigo-100"
+                />
+              </div>
+              {!u.isBase && (
+                <div className="col-span-4">
+                  <label className="block text-xs text-gray-500 mb-1">
+                    How many base units = 1 {u.name || 'this unit'}?
+                  </label>
+                  <input
+                    type="number"
+                    min={1} step="1"
+                    placeholder="e.g. 10 tablets per strip"
+                    value={u.conversionFactor}
+                    onChange={e => update(u.id, 'conversionFactor', e.target.value)}
+                    className="w-full rounded-lg border border-gray-200 px-2 py-1.5 text-sm outline-none focus:border-indigo-400 focus:ring-2 focus:ring-indigo-100"
+                  />
+                </div>
+              )}
+            </div>
+          </div>
+        ))}
+      </div>
+
+      <p className="text-xs text-indigo-400">
+        💡 Skip unit names to create the medicine without units — you can add them later.
+      </p>
+    </div>
+  );
+}
+
+// ── Bulk row type ─────────────────────────────────────────────────────────────
 
 type BulkRow = CreateMedicineDto & { _id: string };
 
@@ -249,6 +394,7 @@ export default function MedicinesPage() {
   const [modalOpen, setModalOpen]   = useState(false);
   const [editing, setEditing]       = useState<Medicine | null>(null);
   const [saving, setSaving]         = useState(false);
+  const [inlineUnits, setInlineUnits] = useState<InlineUnit[]>(defaultInlineUnits());
 
   // Delete
   const [deleteTarget, setDeleteTarget] = useState<Medicine | null>(null);
@@ -325,6 +471,7 @@ export default function MedicinesPage() {
   const openCreate = () => {
     if (isAtLimit) { setLimitModalOpen(true); return; }
     reset({ tabletsPerStrip: 1, reorderLevel: 10, isActive: true, requiresPrescription: false });
+    setInlineUnits(defaultInlineUnits());
     setEditing(null); setModalOpen(true);
   };
 
@@ -346,28 +493,73 @@ export default function MedicinesPage() {
   const onSubmit = async (data: CreateMedicineDto) => {
     setSaving(true);
     try {
-      const payload = {
+      const payload: CreateMedicineDto = {
         ...data,
-        categoryId: data.categoryId || null, manufacturerId: data.manufacturerId || null,
+        categoryId: data.categoryId || null,
+        manufacturerId: data.manufacturerId || null,
         tabletsPerStrip: Number(data.tabletsPerStrip),
         strapsPerBox: Number((data as any).strapsPerBox) || 1,
         stripPrice: Number(data.stripPrice),
-        tabletPrice: Number(data.tabletPrice), reorderLevel: Number(data.reorderLevel),
+        tabletPrice: Number(data.tabletPrice),
+        reorderLevel: Number(data.reorderLevel),
       };
-      if (editing) { await medicineService.update(editing.medicineId, payload); toast.success('Medicine updated'); }
-      else         { await medicineService.create(payload); toast.success('Medicine created'); }
-      setModalOpen(false); await reload();
+
+      if (editing) {
+        await medicineService.update(editing.medicineId, payload);
+        toast.success('Medicine updated');
+      } else {
+        // Build inline units — create UoMs that don't exist yet
+        const filledUnits = inlineUnits.filter(u => u.name.trim());
+        if (filledUnits.length > 0) {
+          const unitDtos = await buildUnitDtos(filledUnits);
+          if (unitDtos === null) return; // error already toasted
+          payload.units = unitDtos;
+        }
+        await medicineService.create(payload);
+        toast.success('Medicine created');
+      }
+      setModalOpen(false);
+      await reload();
     } catch (e: any) {
       const msg: string = e.response?.data?.message ?? 'Something went wrong';
-      // Detect medicine limit error from backend and show upgrade modal
       if (msg.toLowerCase().includes('plan allows a maximum') || msg.toLowerCase().includes('upgrade your plan')) {
         setModalOpen(false);
         setLimitModalOpen(true);
       } else {
         toast.error(msg);
       }
+    } finally {
+      setSaving(false);
     }
-    finally { setSaving(false); }
+  };
+
+  /** Resolve/create UoMs for inline units and return CreateMedicineUnitDto[]. Returns null on error. */
+  const buildUnitDtos = async (units: InlineUnit[]) => {
+    try {
+      // Fetch all existing UoMs to avoid duplicates
+      const allUoms = await uomService.getAll(true);
+      const result = [];
+      for (const u of units) {
+        const nameTrimmed = u.name.trim();
+        const symbolTrimmed = u.symbol.trim() || nameTrimmed.slice(0, 3).toUpperCase();
+        // Find existing UoM by name (case-insensitive)
+        let existing = allUoms.find(x => x.name.toLowerCase() === nameTrimmed.toLowerCase());
+        if (!existing) {
+          existing = await uomService.create({ name: nameTrimmed, symbol: symbolTrimmed, isActive: true });
+        }
+        result.push({
+          unitOfMeasureId: existing.unitOfMeasureId,
+          conversionFactorToBase: u.isBase ? 1 : Number(u.conversionFactor) || 1,
+          unitPrice: Number(u.price) || 0,
+          isBaseUnit: u.isBase,
+          isDefault: u.isDefault,
+        });
+      }
+      return result;
+    } catch (e: any) {
+      toast.error(e.response?.data?.message ?? 'Failed to create unit of measure');
+      return null;
+    }
   };
 
   const handleDelete = async () => {
@@ -601,26 +793,39 @@ export default function MedicinesPage() {
 
       {/* Single Create/Edit Modal */}
       <Modal open={modalOpen} onClose={() => setModalOpen(false)} title={editing ? 'Edit Medicine' : 'Add Medicine'} size="lg">
-        <form onSubmit={handleSubmit(onSubmit)} className="grid grid-cols-2 gap-4">
-          <div className="col-span-2"><FormField label="Medicine Name *" placeholder="e.g. Paracetamol 500mg" error={errors.name?.message} {...register('name', { required: 'Required' })} /></div>
-          <div className="col-span-2"><FormField label="Generic Name" placeholder="e.g. Acetaminophen" {...register('genericName')} /></div>
-          <SelectField label="Category" {...register('categoryId')}>
-            <option value="">— None —</option>
-            {categories.map(c => <option key={c.categoryId} value={c.categoryId}>{c.categoryName}</option>)}
-          </SelectField>
-          <SelectField label="Manufacturer" {...register('manufacturerId')}>
-            <option value="">— None —</option>
-            {manufacturers.map(m => <option key={m.manufacturerId} value={m.manufacturerId}>{m.name}</option>)}
-          </SelectField>
-          <FormField label="Tablets per Strip *" type="number" min={1} error={errors.tabletsPerStrip?.message} {...register('tabletsPerStrip', { required: true, min: 1 })} />
-          <FormField label="Strips per Box" type="number" min={1} {...register('strapsPerBox' as any)} />
-          <FormField label="Strip Price (Rs) *" type="number" step="0.01" min={0} error={errors.stripPrice?.message} {...register('stripPrice', { required: true })} />
-          <FormField label="Tablet Price (Rs) *" type="number" step="0.01" min={0} error={errors.tabletPrice?.message} {...register('tabletPrice', { required: true })} />
-          <div className="col-span-2 flex gap-6">
-            <label className="flex items-center gap-2 text-sm cursor-pointer"><input type="checkbox" className="h-4 w-4 rounded text-blue-600" {...register('isActive')} />Active</label>
-            <label className="flex items-center gap-2 text-sm cursor-pointer"><input type="checkbox" className="h-4 w-4 rounded text-purple-600" {...register('requiresPrescription')} />Requires Prescription</label>
+        <form onSubmit={handleSubmit(onSubmit)} className="space-y-4">
+          {/* ── Basic Info ─────────────────────────────────────────────────── */}
+          <div className="grid grid-cols-2 gap-4">
+            <div className="col-span-2"><FormField label="Medicine Name *" placeholder="e.g. Paracetamol 500mg" error={errors.name?.message} {...register('name', { required: 'Required' })} /></div>
+            <div className="col-span-2"><FormField label="Generic Name" placeholder="e.g. Acetaminophen" {...register('genericName')} /></div>
+            <SelectField label="Category" {...register('categoryId')}>
+              <option value="">— None —</option>
+              {categories.map(c => <option key={c.categoryId} value={c.categoryId}>{c.categoryName}</option>)}
+            </SelectField>
+            <SelectField label="Manufacturer" {...register('manufacturerId')}>
+              <option value="">— None —</option>
+              {manufacturers.map(m => <option key={m.manufacturerId} value={m.manufacturerId}>{m.name}</option>)}
+            </SelectField>
+            <FormField label="Tablets per Strip *" type="number" min={1} error={errors.tabletsPerStrip?.message} {...register('tabletsPerStrip', { required: true, min: 1 })} />
+            <FormField label="Strips per Box" type="number" min={1} {...register('strapsPerBox' as any)} />
+            <FormField label="Strip Price (Rs) *" type="number" step="0.01" min={0} error={errors.stripPrice?.message} {...register('stripPrice', { required: true })} />
+            <FormField label="Tablet Price (Rs) *" type="number" step="0.01" min={0} error={errors.tabletPrice?.message} {...register('tabletPrice', { required: true })} />
+            <FormField label="Reorder Level" type="number" min={0} {...register('reorderLevel')} />
+            <div className="flex items-end gap-6 pb-1">
+              <label className="flex items-center gap-2 text-sm cursor-pointer"><input type="checkbox" className="h-4 w-4 rounded text-blue-600" {...register('isActive')} />Active</label>
+              <label className="flex items-center gap-2 text-sm cursor-pointer"><input type="checkbox" className="h-4 w-4 rounded text-purple-600" {...register('requiresPrescription')} />Rx Required</label>
+            </div>
           </div>
-          <div className="col-span-2 flex justify-end gap-3 pt-2">
+
+          {/* ── Inline Units (create-only) ──────────────────────────────────── */}
+          {!editing && (
+            <InlineUnitsEditor
+              units={inlineUnits}
+              onChange={setInlineUnits}
+            />
+          )}
+
+          <div className="flex justify-end gap-3 pt-2 border-t border-gray-100">
             <button type="button" onClick={() => setModalOpen(false)} className="rounded-lg border border-gray-200 px-4 py-2 text-sm font-medium hover:bg-gray-50">Cancel</button>
             <button type="submit" disabled={saving} className="inline-flex items-center gap-2 rounded-lg bg-blue-600 px-5 py-2 text-sm font-semibold text-white hover:bg-blue-700 disabled:opacity-60">
               {saving && <LoadingSpinner className="h-4 w-4 text-white" />}
