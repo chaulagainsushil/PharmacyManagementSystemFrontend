@@ -147,53 +147,60 @@ export default function UnitsPage() {
         </div>
       )}
 
-      {/* Units grid */}
+      {/* Units table */}
       {units.length > 0 && (
-        <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4">
-          {units.map(u => (
-            <div
-              key={u.unitOfMeasureId}
-              className={`rounded-2xl border bg-white p-4 shadow-sm transition-all
-                ${u.isActive ? 'border-gray-100' : 'border-gray-100 opacity-60'}`}
-            >
-              {/* Symbol badge + name */}
-              <div className="flex items-start justify-between gap-2">
-                <div className="flex items-center gap-3">
-                  <div className={`flex h-10 w-10 flex-shrink-0 items-center justify-center rounded-xl text-sm font-bold
-                    ${u.isActive ? 'bg-indigo-100 text-indigo-700' : 'bg-gray-100 text-gray-400'}`}>
-                    {u.symbol}
-                  </div>
-                  <div>
-                    <p className="font-semibold text-gray-900">{u.name}</p>
-                    <Badge variant={u.isActive ? 'blue' : 'gray'} className="mt-0.5">
+        <div className="rounded-2xl border border-slate-200 bg-white shadow-sm overflow-hidden">
+          <table className="w-full text-sm">
+            <thead>
+              <tr className="border-b border-gray-100 bg-slate-50 text-left text-xs font-semibold uppercase tracking-wide text-gray-500">
+                <th className="px-6 py-3">#</th>
+                <th className="px-6 py-3">Name</th>
+                <th className="px-6 py-3">Symbol</th>
+                <th className="px-6 py-3">Status</th>
+                <th className="px-6 py-3 text-right">Actions</th>
+              </tr>
+            </thead>
+            <tbody className="divide-y divide-slate-100">
+              {units.map((u, idx) => (
+                <tr key={u.unitOfMeasureId} className={`hover:bg-slate-50 transition-colors ${!u.isActive ? 'opacity-50' : ''}`}>
+                  <td className="px-6 py-3 text-gray-400">{idx + 1}</td>
+                  <td className="px-6 py-3 font-medium text-gray-900">{u.name}</td>
+                  <td className="px-6 py-3">
+                    <span className="inline-flex items-center rounded-lg bg-indigo-100 px-2.5 py-0.5 text-xs font-bold text-indigo-700">
+                      {u.symbol}
+                    </span>
+                  </td>
+                  <td className="px-6 py-3">
+                    <Badge variant={u.isActive ? 'green' : 'gray'}>
                       {u.isActive ? 'Active' : 'Inactive'}
                     </Badge>
-                  </div>
-                </div>
-              </div>
-
-              {/* Actions */}
-              <div className="mt-4 flex items-center gap-2 border-t border-gray-50 pt-3">
-                <button
-                  onClick={() => openEdit(u)}
-                  className="flex flex-1 items-center justify-center gap-1.5 rounded-lg border border-gray-200 py-1.5 text-xs font-medium text-gray-600 hover:bg-gray-50 transition-colors"
-                >
-                  <Pencil className="h-3.5 w-3.5" /> Edit
-                </button>
-                <button
-                  onClick={() => handleToggle(u)}
-                  className={`flex flex-1 items-center justify-center gap-1.5 rounded-lg py-1.5 text-xs font-medium transition-colors
-                    ${u.isActive
-                      ? 'border border-red-200 text-red-500 hover:bg-red-50'
-                      : 'border border-emerald-200 text-emerald-600 hover:bg-emerald-50'}`}
-                >
-                  {u.isActive
-                    ? <><ToggleLeft  className="h-3.5 w-3.5" /> Deactivate</>
-                    : <><ToggleRight className="h-3.5 w-3.5" /> Activate</>}
-                </button>
-              </div>
-            </div>
-          ))}
+                  </td>
+                  <td className="px-6 py-3">
+                    <div className="flex items-center justify-end gap-2">
+                      <button
+                        onClick={() => openEdit(u)}
+                        className="rounded-lg p-1.5 text-gray-400 hover:bg-blue-50 hover:text-blue-600 transition-colors"
+                        title="Edit"
+                      >
+                        <Pencil className="h-4 w-4" />
+                      </button>
+                      <button
+                        onClick={() => handleToggle(u)}
+                        className={`rounded-lg p-1.5 transition-colors ${
+                          u.isActive
+                            ? 'text-gray-400 hover:bg-red-50 hover:text-red-500'
+                            : 'text-gray-400 hover:bg-emerald-50 hover:text-emerald-600'
+                        }`}
+                        title={u.isActive ? 'Deactivate' : 'Activate'}
+                      >
+                        {u.isActive ? <ToggleLeft className="h-4 w-4" /> : <ToggleRight className="h-4 w-4" />}
+                      </button>
+                    </div>
+                  </td>
+                </tr>
+              ))}
+            </tbody>
+          </table>
         </div>
       )}
 
