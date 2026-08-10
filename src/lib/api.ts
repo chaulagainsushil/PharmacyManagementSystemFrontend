@@ -16,15 +16,29 @@ api.interceptors.request.use((config) => {
   return config;
 });
 
-// On 401 clear token and redirect to login
 api.interceptors.response.use(
   (res) => res,
   (error) => {
-    if (error.response?.status === 401 && typeof window !== 'undefined') {
+    if (typeof window === 'undefined') return Promise.reject(error);
+
+    const status = error.response?.status;
+
+    if (status === 401) {
+      // Clear credentials and send to login
       localStorage.removeItem('pms_token');
       localStorage.removeItem('pms_user');
+      localStorage.removeItem('pms_subscription');
       window.location.href = '/login';
+      return Promise.reject(error);
     }
+
+    if (status === 402) {
+      // Subscription expired — block navigation and send to the expired page
+      // We do NOT clear the token; the user should still be able to reach /subscription pages
+      window.location.href = '/subscription/expired';
+      return Promise.reject(error);
+    }
+
     return Promise.reject(error);
   }
 );

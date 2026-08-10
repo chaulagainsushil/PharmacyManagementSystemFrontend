@@ -10,20 +10,45 @@ import { LoadingSpinner } from '@/components/ui/LoadingSpinner';
 import type { LoginDto } from '@/types';
 
 export default function LoginPage() {
-  const { login } = useAuth();
+  const { login, subscription } = useAuth();
   const router = useRouter();
-  const [showPw, setShowPw] = useState(false);
+  const [showPw, setShowPw]     = useState(false);
   const [submitting, setSubmitting] = useState(false);
 
   const { register, handleSubmit, formState: { errors } } = useForm<LoginDto>();
 
   const onSubmit = async (data: LoginDto) => {
     setSubmitting(true);
-    const err = await login(data);
-    setSubmitting(false);
-    if (err) { toast.error(err); return; }
-    toast.success('Welcome back!');
-    router.replace('/dashboard');
+    try {
+      const err = await login(data);
+      if (err) {
+        // Map known backend error messages to friendlier UI copy
+        const msg = err.toLowerCase();
+        if (msg.includes('pharmacy') || msg.includes('tenant')) {
+          toast.error(err); // Pass through tenant-specific messages verbatim
+        } else if (msg.includes('invalid') || msg.includes('password') || msg.includes('credentials')) {
+          toast.error('Invalid email or password. Please try again.');
+        } else if (msg.includes('lock') || msg.includes('ban')) {
+          toast.error('Account is locked. Please contact your administrator.');
+        } else if (msg.includes('not found') || msg.includes('no user')) {
+          toast.error('No account found with this email address.');
+        } else {
+          toast.error(err);
+        }
+        return;
+      }
+
+      toast.success('Welcome back!');
+
+      // If subscription is expired, AppLayout will redirect — go to dashboard
+      // and let the guard handle it
+      router.replace('/dashboard');
+    } catch (e: unknown) {
+      const err = e as { response?: { data?: { message?: string } } };
+      toast.error(err.response?.data?.message ?? 'Login failed. Please try again.');
+    } finally {
+      setSubmitting(false);
+    }
   };
 
   return (
@@ -91,8 +116,8 @@ export default function LoginPage() {
           </form>
 
           <p className="mt-5 text-center text-sm text-gray-500">
-            New pharmacist?{' '}
-            <a href="/signup" className="font-medium text-blue-600 hover:underline">Create account</a>
+            New pharmacy?{' '}
+            <a href="/signup" className="font-medium text-blue-600 hover:underline">Register your pharmacy</a>
           </p>
         </div>
 

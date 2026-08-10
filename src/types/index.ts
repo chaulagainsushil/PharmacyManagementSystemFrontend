@@ -4,6 +4,17 @@ export interface LoginDto {
   password: string;
 }
 
+/** Used for tenant self-registration (POST /api/auth/tenant-signup) */
+export interface TenantSignupDto {
+  fullName: string;
+  email: string;
+  password: string;
+  confirmPassword: string;
+  pharmacyName: string;
+  initialPlan: PlanType;
+}
+
+/** Used for adding a pharmacist inside an existing tenant (POST /api/auth/signup) */
 export interface SignupDto {
   fullName: string;
   email: string;
@@ -20,6 +31,36 @@ export interface AuthResponse {
   fullName: string | null;
   roles: string[];
   userId: number | null;
+  /** The tenant (pharmacy) this user belongs to — embedded in the JWT as "tenantId" claim */
+  tenantId: string | null;
+}
+
+// ── Subscription ──────────────────────────────────────────────────────────────
+
+export type PlanType = 'Silver' | 'Gold' | 'Diamond';
+export type SubscriptionStatus = 'Active' | 'Expired' | 'Cancelled';
+
+export interface SubscriptionInfo {
+  subscriptionId: number;
+  tenantId: string;
+  planType: PlanType;
+  startDate: string;
+  /** null for Diamond (lifetime) plans */
+  endDate: string | null;
+  status: SubscriptionStatus;
+  paymentReference: string | null;
+  isActive: boolean;
+  /** null for Diamond plans or when already expired */
+  daysRemaining: number | null;
+}
+
+export interface RenewSubscriptionDto {
+  paymentReference?: string;
+}
+
+export interface UpgradeSubscriptionDto {
+  newPlan: PlanType;
+  paymentReference?: string;
 }
 
 // ── Category ─────────────────────────────────────────────────────────────────
