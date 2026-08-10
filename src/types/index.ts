@@ -106,6 +106,20 @@ export interface UnitOfMeasure {
   name: string;
   symbol: string;
   isActive: boolean;
+  updatedAt?: string | null;
+}
+
+export interface CreateUomDto {
+  name: string;
+  symbol: string;
+  isActive?: boolean;
+}
+
+export interface UpdateUomDto {
+  name: string;
+  symbol: string;
+  isActive: boolean;
+  updatedAt?: string | null;
 }
 
 // ── MedicineUnit ──────────────────────────────────────────────────────────────
