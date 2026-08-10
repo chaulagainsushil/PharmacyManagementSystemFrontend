@@ -6,7 +6,7 @@ import {
   LayoutDashboard, Pill, Package, Users, Tag, Building2,
   Truck, ShoppingCart, LogOut, Activity, X, History, UserPlus,
   FlaskConical, AlertTriangle, BarChart3, CreditCard,
-  Crown, Gem, Shield,
+  Crown, Gem, Shield, Ruler,
 } from 'lucide-react';
 import { cn } from '@/lib/utils';
 import { useAuth } from '@/context/AuthContext';
@@ -16,6 +16,7 @@ const navItems = [
   { href: '/dashboard',              label: 'Dashboard',        icon: LayoutDashboard },
   { href: '/medicines',              label: 'Medicines',         icon: Pill },
   { href: '/batches',                label: 'Batches',           icon: Package },
+  { href: '/units',                  label: 'Units of Measure',  icon: Ruler },
   { href: '/customers',              label: 'Customers',         icon: Users },
   { href: '/sales',                  label: 'Sell Medicine',     icon: ShoppingCart },
   { href: '/sales-history',          label: 'Sales History',     icon: History },

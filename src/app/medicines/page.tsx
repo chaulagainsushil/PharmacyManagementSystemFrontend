@@ -23,7 +23,7 @@ import { uomService } from '@/services/uomService';
 import { useAuth } from '@/context/AuthContext';
 import type {
   Medicine, CreateMedicineDto, Category, Manufacturer,
-  BulkCreateMedicineItemResult,
+  BulkCreateMedicineItemResult, UnitOfMeasure,
 } from '@/types';
 
 // ── Medicine Limit Upgrade Modal ──────────────────────────────────────────────
@@ -118,34 +118,35 @@ function MedicineLimitModal({ open, onClose }: { open: boolean; onClose: () => v
 // ── Inline Unit types & helpers ───────────────────────────────────────────────
 
 interface InlineUnit {
-  id: string;         // client-only key
-  name: string;       // UoM name, e.g. "Strip"
-  symbol: string;     // UoM symbol, e.g. "strip"
-  price: string;      // unit selling price
-  conversionFactor: string; // how many base units = 1 of this unit
-  isBase: boolean;    // is this the base/smallest unit?
-  isDefault: boolean; // shown first in POS
+  id: string;
+  uomId: string;        // selected UoM id (string for select value)
+  price: string;
+  conversionFactor: string;
+  isBase: boolean;
+  isDefault: boolean;
 }
 
 function defaultInlineUnits(): InlineUnit[] {
   return [
-    { id: '1', name: 'Tablet', symbol: 'tab',   price: '',   conversionFactor: '1',  isBase: true,  isDefault: false },
-    { id: '2', name: 'Strip',  symbol: 'strip', price: '',   conversionFactor: '10', isBase: false, isDefault: true  },
+    { id: '1', uomId: '', price: '', conversionFactor: '1',  isBase: true,  isDefault: false },
+    { id: '2', uomId: '', price: '', conversionFactor: '',   isBase: false, isDefault: true  },
   ];
 }
 
 interface InlineUnitsEditorProps {
   units: InlineUnit[];
+  uoms: UnitOfMeasure[];
   onChange: (units: InlineUnit[]) => void;
 }
 
-function InlineUnitsEditor({ units, onChange }: InlineUnitsEditorProps) {
+function InlineUnitsEditor({ units, uoms, onChange }: InlineUnitsEditorProps) {
+  const usedIds = units.map(u => u.uomId).filter(Boolean);
+
   const update = (id: string, field: keyof InlineUnit, value: string | boolean) => {
     onChange(units.map(u => {
       if (u.id !== id) {
-        // Only one default and one base at a time
         if (field === 'isDefault' && value === true) return { ...u, isDefault: false };
-        if (field === 'isBase'    && value === true) return { ...u, isBase: false, conversionFactor: u.conversionFactor };
+        if (field === 'isBase'    && value === true) return { ...u, isBase: false };
         return u;
       }
       const updated = { ...u, [field]: value };
@@ -155,90 +156,78 @@ function InlineUnitsEditor({ units, onChange }: InlineUnitsEditorProps) {
   };
 
   return (
-    <div className="rounded-xl border border-indigo-100 bg-indigo-50/50 p-4 space-y-3">
-      <div className="flex items-center justify-between">
-        <div>
-          <p className="text-sm font-semibold text-indigo-800">Units of Sale</p>
-          <p className="text-xs text-indigo-500 mt-0.5">
-            Define how this medicine is sold (e.g. Tablet + Strip). One must be the <span className="font-medium">base</span>, one the <span className="font-medium">default</span> in POS.
-          </p>
-        </div>
+    <div className="rounded-xl border border-indigo-100 bg-indigo-50/60 p-4 space-y-3">
+      <div>
+        <p className="text-sm font-semibold text-indigo-800">Units of Sale</p>
+        <p className="text-xs text-indigo-400 mt-0.5">
+          Select up to 2 units for this medicine — one Base (smallest), one Default (shown in POS).
+          {' '}<span className="font-medium">Create units first</span> from <span className="font-medium">Units of Measure</span> in the sidebar.
+        </p>
       </div>
 
-      <div className="space-y-2">
-        {units.map((u, idx) => (
-          <div key={u.id} className="rounded-lg border border-indigo-100 bg-white p-3 space-y-2">
-            {/* Row header */}
-            <div className="flex items-center justify-between">
-              <span className="text-xs font-semibold text-gray-500 uppercase tracking-wide">Unit {idx + 1}</span>
-              <div className="flex gap-3">
-                {/* Base toggle */}
-                <label className="flex items-center gap-1.5 cursor-pointer select-none">
-                  <input
-                    type="radio"
-                    name="baseUnit"
-                    checked={u.isBase}
-                    onChange={() => update(u.id, 'isBase', true)}
-                    className="h-3.5 w-3.5 accent-indigo-600"
-                  />
-                  <span className={`text-xs font-medium ${u.isBase ? 'text-indigo-700' : 'text-gray-400'}`}>Base</span>
-                </label>
-                {/* Default toggle */}
-                <label className="flex items-center gap-1.5 cursor-pointer select-none">
-                  <input
-                    type="radio"
-                    name="defaultUnit"
-                    checked={u.isDefault}
-                    onChange={() => update(u.id, 'isDefault', true)}
-                    className="h-3.5 w-3.5 accent-yellow-500"
-                  />
-                  <span className={`text-xs font-medium ${u.isDefault ? 'text-yellow-600' : 'text-gray-400'}`}>★ Default</span>
-                </label>
+      <div className="grid grid-cols-2 gap-3">
+        {units.map((u, idx) => {
+          const availableUoms = uoms.filter(x => x.isActive && (x.unitOfMeasureId.toString() === u.uomId || !usedIds.includes(x.unitOfMeasureId.toString())));
+          const selectedUom   = uoms.find(x => x.unitOfMeasureId.toString() === u.uomId);
+          return (
+            <div key={u.id} className={`rounded-xl border bg-white p-3 space-y-2 ${u.isBase ? 'border-indigo-200' : 'border-yellow-200'}`}>
+              {/* Header: Base / Default radio */}
+              <div className="flex items-center justify-between">
+                <span className="text-xs font-bold text-gray-500 uppercase tracking-wide">Unit {idx + 1}</span>
+                <div className="flex gap-2">
+                  <label className="flex items-center gap-1 cursor-pointer">
+                    <input type="radio" name="baseUnit" checked={u.isBase}
+                      onChange={() => update(u.id, 'isBase', true)}
+                      className="h-3 w-3 accent-indigo-600" />
+                    <span className={`text-xs font-semibold ${u.isBase ? 'text-indigo-700' : 'text-gray-400'}`}>Base</span>
+                  </label>
+                  <label className="flex items-center gap-1 cursor-pointer">
+                    <input type="radio" name="defaultUnit" checked={u.isDefault}
+                      onChange={() => update(u.id, 'isDefault', true)}
+                      className="h-3 w-3 accent-yellow-500" />
+                    <span className={`text-xs font-semibold ${u.isDefault ? 'text-yellow-600' : 'text-gray-400'}`}>★ Default</span>
+                  </label>
+                </div>
               </div>
-            </div>
 
-            {/* Fields */}
-            <div className="grid grid-cols-4 gap-2">
-              <div className="col-span-2">
-                <label className="block text-xs text-gray-500 mb-1">Unit Name *</label>
-                <input
-                  type="text"
-                  placeholder="e.g. Tablet"
-                  value={u.name}
-                  onChange={e => update(u.id, 'name', e.target.value)}
-                  className="w-full rounded-lg border border-gray-200 px-2 py-1.5 text-sm outline-none focus:border-indigo-400 focus:ring-2 focus:ring-indigo-100"
-                />
-              </div>
+              {/* UoM dropdown */}
               <div>
-                <label className="block text-xs text-gray-500 mb-1">Symbol</label>
-                <input
-                  type="text"
-                  placeholder="tab"
-                  value={u.symbol}
-                  onChange={e => update(u.id, 'symbol', e.target.value)}
+                <label className="block text-xs text-gray-500 mb-1">Unit *</label>
+                <select
+                  value={u.uomId}
+                  onChange={e => update(u.id, 'uomId', e.target.value)}
                   className="w-full rounded-lg border border-gray-200 px-2 py-1.5 text-sm outline-none focus:border-indigo-400 focus:ring-2 focus:ring-indigo-100"
-                />
+                >
+                  <option value="">— Select —</option>
+                  {availableUoms.map(x => (
+                    <option key={x.unitOfMeasureId} value={x.unitOfMeasureId}>
+                      {x.name} ({x.symbol})
+                    </option>
+                  ))}
+                </select>
               </div>
+
+              {/* Price */}
               <div>
-                <label className="block text-xs text-gray-500 mb-1">Price (Rs) *</label>
+                <label className="block text-xs text-gray-500 mb-1">
+                  Price (Rs) {selectedUom ? `per ${selectedUom.symbol}` : ''}
+                </label>
                 <input
-                  type="number"
-                  min={0} step="0.01"
-                  placeholder="0.00"
+                  type="number" min={0} step="0.01" placeholder="0.00"
                   value={u.price}
                   onChange={e => update(u.id, 'price', e.target.value)}
                   className="w-full rounded-lg border border-gray-200 px-2 py-1.5 text-sm outline-none focus:border-indigo-400 focus:ring-2 focus:ring-indigo-100"
                 />
               </div>
+
+              {/* Conversion (only for non-base) */}
               {!u.isBase && (
-                <div className="col-span-4">
+                <div>
                   <label className="block text-xs text-gray-500 mb-1">
-                    How many base units = 1 {u.name || 'this unit'}?
+                    = how many base units?
                   </label>
                   <input
-                    type="number"
-                    min={1} step="1"
-                    placeholder="e.g. 10 tablets per strip"
+                    type="number" min={1} step="1" placeholder="e.g. 10"
                     value={u.conversionFactor}
                     onChange={e => update(u.id, 'conversionFactor', e.target.value)}
                     className="w-full rounded-lg border border-gray-200 px-2 py-1.5 text-sm outline-none focus:border-indigo-400 focus:ring-2 focus:ring-indigo-100"
@@ -246,12 +235,12 @@ function InlineUnitsEditor({ units, onChange }: InlineUnitsEditorProps) {
                 </div>
               )}
             </div>
-          </div>
-        ))}
+          );
+        })}
       </div>
 
       <p className="text-xs text-indigo-400">
-        💡 Skip unit names to create the medicine without units — you can add them later.
+        💡 Leave unit dropdowns empty to skip — you can add units later via the Units manager.
       </p>
     </div>
   );
@@ -385,6 +374,7 @@ export default function MedicinesPage() {
   const [medicines, setMedicines]       = useState<Medicine[]>([]);
   const [categories, setCategories]     = useState<Category[]>([]);
   const [manufacturers, setManufacturers] = useState<Manufacturer[]>([]);
+  const [uoms, setUoms]                 = useState<UnitOfMeasure[]>([]);
   const [loading, setLoading]           = useState(true);
   const [searching, setSearching]       = useState(false);
   const [search, setSearch]             = useState('');
@@ -421,10 +411,10 @@ export default function MedicinesPage() {
 
   // Load categories + manufacturers once, and all medicines initially
   const loadMeta = useCallback(async () => {
-    const [cats, mfgs] = await Promise.all([
-      categoryService.getAll(), manufacturerService.getAll(),
+    const [cats, mfgs, allUoms] = await Promise.all([
+      categoryService.getAll(), manufacturerService.getAll(), uomService.getAll(),
     ]);
-    setCategories(cats); setManufacturers(mfgs);
+    setCategories(cats); setManufacturers(mfgs); setUoms(allUoms);
   }, []);
 
   const loadAll = useCallback(async () => {
@@ -508,11 +498,11 @@ export default function MedicinesPage() {
         await medicineService.update(editing.medicineId, payload);
         toast.success('Medicine updated');
       } else {
-        // Build inline units — create UoMs that don't exist yet
-        const filledUnits = inlineUnits.filter(u => u.name.trim());
+        // Build inline units from selected UoMs
+        const filledUnits = inlineUnits.filter(u => u.uomId);
         if (filledUnits.length > 0) {
-          const unitDtos = await buildUnitDtos(filledUnits);
-          if (unitDtos === null) return; // error already toasted
+          const unitDtos = buildUnitDtos(filledUnits);
+          if (unitDtos === null) return;
           payload.units = unitDtos;
         }
         await medicineService.create(payload);
@@ -533,33 +523,19 @@ export default function MedicinesPage() {
     }
   };
 
-  /** Resolve/create UoMs for inline units and return CreateMedicineUnitDto[]. Returns null on error. */
-  const buildUnitDtos = async (units: InlineUnit[]) => {
-    try {
-      // Fetch all existing UoMs to avoid duplicates
-      const allUoms = await uomService.getAll(true);
-      const result = [];
-      for (const u of units) {
-        const nameTrimmed = u.name.trim();
-        const symbolTrimmed = u.symbol.trim() || nameTrimmed.slice(0, 3).toUpperCase();
-        // Find existing UoM by name (case-insensitive)
-        let existing = allUoms.find(x => x.name.toLowerCase() === nameTrimmed.toLowerCase());
-        if (!existing) {
-          existing = await uomService.create({ name: nameTrimmed, symbol: symbolTrimmed, isActive: true });
-        }
-        result.push({
-          unitOfMeasureId: existing.unitOfMeasureId,
-          conversionFactorToBase: u.isBase ? 1 : Number(u.conversionFactor) || 1,
-          unitPrice: Number(u.price) || 0,
-          isBaseUnit: u.isBase,
-          isDefault: u.isDefault,
-        });
-      }
-      return result;
-    } catch (e: any) {
-      toast.error(e.response?.data?.message ?? 'Failed to create unit of measure');
-      return null;
-    }
+  /** Build CreateMedicineUnitDto[] from inline unit selections. Returns null on validation error. */
+  const buildUnitDtos = (units: InlineUnit[]) => {
+    const baseCount    = units.filter(u => u.isBase).length;
+    const defaultCount = units.filter(u => u.isDefault).length;
+    if (baseCount === 0)    { toast.error('Select a base unit');    return null; }
+    if (defaultCount === 0) { toast.error('Select a default unit'); return null; }
+    return units.map(u => ({
+      unitOfMeasureId:        Number(u.uomId),
+      conversionFactorToBase: u.isBase ? 1 : (Number(u.conversionFactor) || 1),
+      unitPrice:              Number(u.price) || 0,
+      isBaseUnit:             u.isBase,
+      isDefault:              u.isDefault,
+    }));
   };
 
   const handleDelete = async () => {
@@ -821,6 +797,7 @@ export default function MedicinesPage() {
           {!editing && (
             <InlineUnitsEditor
               units={inlineUnits}
+              uoms={uoms}
               onChange={setInlineUnits}
             />
           )}
