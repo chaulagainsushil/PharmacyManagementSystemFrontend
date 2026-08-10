@@ -489,8 +489,8 @@ export default function MedicinesPage() {
         manufacturerId: data.manufacturerId || null,
         tabletsPerStrip: Number(data.tabletsPerStrip),
         strapsPerBox: Number((data as any).strapsPerBox) || 1,
-        stripPrice: Number(data.stripPrice),
-        tabletPrice: Number(data.tabletPrice),
+        stripPrice: Number(data.stripPrice) || 0,
+        tabletPrice: Number(data.tabletPrice) || 0,
         reorderLevel: Number(data.reorderLevel),
       };
 
@@ -772,24 +772,53 @@ export default function MedicinesPage() {
         <form onSubmit={handleSubmit(onSubmit)} className="space-y-4">
           {/* ── Basic Info ─────────────────────────────────────────────────── */}
           <div className="grid grid-cols-2 gap-4">
-            <div className="col-span-2"><FormField label="Medicine Name *" placeholder="e.g. Paracetamol 500mg" error={errors.name?.message} {...register('name', { required: 'Required' })} /></div>
-            <div className="col-span-2"><FormField label="Generic Name" placeholder="e.g. Acetaminophen" {...register('genericName')} /></div>
-            <SelectField label="Category" {...register('categoryId')}>
-              <option value="">— None —</option>
-              {categories.map(c => <option key={c.categoryId} value={c.categoryId}>{c.categoryName}</option>)}
-            </SelectField>
-            <SelectField label="Manufacturer" {...register('manufacturerId')}>
-              <option value="">— None —</option>
-              {manufacturers.map(m => <option key={m.manufacturerId} value={m.manufacturerId}>{m.name}</option>)}
-            </SelectField>
+            <div className="col-span-2">
+              <FormField label="Medicine Name *" placeholder="e.g. Paracetamol 500mg" error={errors.name?.message} {...register('name', { required: 'Required' })} />
+            </div>
+            <div className="col-span-2">
+              <FormField label="Generic Name" placeholder="e.g. Acetaminophen" {...register('genericName')} />
+            </div>
+
+            {/* Category */}
+            <div className="space-y-1">
+              <label className="block text-sm font-medium text-gray-700">Category</label>
+              <select
+                {...register('categoryId')}
+                className="w-full rounded-lg border border-gray-200 px-3 py-2 text-sm outline-none focus:border-blue-500 focus:ring-2 focus:ring-blue-100"
+              >
+                <option value="">— None —</option>
+                {categories.map(c => (
+                  <option key={c.categoryId} value={c.categoryId}>{c.categoryName}</option>
+                ))}
+              </select>
+            </div>
+
+            {/* Manufacturer */}
+            <div className="space-y-1">
+              <label className="block text-sm font-medium text-gray-700">Manufacturer</label>
+              <select
+                {...register('manufacturerId')}
+                className="w-full rounded-lg border border-gray-200 px-3 py-2 text-sm outline-none focus:border-blue-500 focus:ring-2 focus:ring-blue-100"
+              >
+                <option value="">— None —</option>
+                {manufacturers.map(m => (
+                  <option key={m.manufacturerId} value={m.manufacturerId}>{m.name}</option>
+                ))}
+              </select>
+            </div>
+
             <FormField label="Tablets per Strip *" type="number" min={1} error={errors.tabletsPerStrip?.message} {...register('tabletsPerStrip', { required: true, min: 1 })} />
             <FormField label="Strips per Box" type="number" min={1} {...register('strapsPerBox' as any)} />
-            <FormField label="Strip Price (Rs) *" type="number" step="0.01" min={0} error={errors.stripPrice?.message} {...register('stripPrice', { required: true })} />
-            <FormField label="Tablet Price (Rs) *" type="number" step="0.01" min={0} error={errors.tabletPrice?.message} {...register('tabletPrice', { required: true })} />
             <FormField label="Reorder Level" type="number" min={0} {...register('reorderLevel')} />
             <div className="flex items-end gap-6 pb-1">
-              <label className="flex items-center gap-2 text-sm cursor-pointer"><input type="checkbox" className="h-4 w-4 rounded text-blue-600" {...register('isActive')} />Active</label>
-              <label className="flex items-center gap-2 text-sm cursor-pointer"><input type="checkbox" className="h-4 w-4 rounded text-purple-600" {...register('requiresPrescription')} />Rx Required</label>
+              <label className="flex items-center gap-2 text-sm cursor-pointer">
+                <input type="checkbox" className="h-4 w-4 rounded text-blue-600" {...register('isActive')} />
+                Active
+              </label>
+              <label className="flex items-center gap-2 text-sm cursor-pointer">
+                <input type="checkbox" className="h-4 w-4 rounded text-purple-600" {...register('requiresPrescription')} />
+                Rx Required
+              </label>
             </div>
           </div>
 
