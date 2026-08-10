@@ -17,13 +17,22 @@ import { format } from 'date-fns';
 // ── Plan meta helpers ────────────────────────────────────────────────────────
 
 const PLAN_META: Record<PlanType, { label: string; color: string; bg: string; border: string; Icon: React.FC<{ className?: string }>; price: string; duration: string }> = {
+  Trial: {
+    label: 'Trial',
+    color: 'text-emerald-700',
+    bg: 'bg-emerald-50',
+    border: 'border-emerald-300',
+    Icon: CheckCircle,
+    price: 'Free',
+    duration: '15 days',
+  },
   Silver: {
     label: 'Silver',
     color: 'text-slate-700',
     bg: 'bg-slate-100',
     border: 'border-slate-300',
     Icon: Shield,
-    price: 'Rs 1,999',
+    price: 'Rs 999',
     duration: '6 months',
   },
   Gold: {
@@ -32,7 +41,7 @@ const PLAN_META: Record<PlanType, { label: string; color: string; bg: string; bo
     bg: 'bg-yellow-50',
     border: 'border-yellow-400',
     Icon: Crown,
-    price: 'Rs 3,499',
+    price: 'Rs 1,799',
     duration: '1 year',
   },
   Diamond: {
@@ -41,7 +50,7 @@ const PLAN_META: Record<PlanType, { label: string; color: string; bg: string; bo
     bg: 'bg-indigo-50',
     border: 'border-indigo-400',
     Icon: Gem,
-    price: 'Rs 8,999',
+    price: 'Rs 4,999',
     duration: 'Lifetime',
   },
 };

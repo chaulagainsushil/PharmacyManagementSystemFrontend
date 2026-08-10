@@ -1,11 +1,13 @@
 'use client';
 
 import { useEffect, useState, useCallback, useRef } from 'react';
+import { useRouter } from 'next/navigation';
 import { useForm } from 'react-hook-form';
 import toast from 'react-hot-toast';
 import {
   Plus, Pencil, Trash2, Search, Pill, ListPlus,
   CheckCircle, XCircle, ChevronDown, ChevronUp, X, Settings,
+  Crown, Gem, Shield, Sparkles,
 } from 'lucide-react';
 import { AppLayout } from '@/components/layout/AppLayout';
 import { Modal } from '@/components/ui/Modal';
@@ -17,10 +19,98 @@ import { UnitsManager } from '@/components/ui/UnitsManager';
 import { medicineService } from '@/services/medicineService';
 import { categoryService } from '@/services/categoryService';
 import { manufacturerService } from '@/services/manufacturerService';
+import { useAuth } from '@/context/AuthContext';
 import type {
   Medicine, CreateMedicineDto, Category, Manufacturer,
   BulkCreateMedicineItemResult,
 } from '@/types';
+
+// ── Medicine Limit Upgrade Modal ──────────────────────────────────────────────
+
+function MedicineLimitModal({ open, onClose }: { open: boolean; onClose: () => void }) {
+  const router = useRouter();
+
+  const plans = [
+    {
+      name: 'Silver',
+      price: 'Rs 999',
+      duration: '6 months',
+      Icon: Shield,
+      color: 'text-slate-700',
+      bg: 'bg-slate-50',
+      border: 'border-slate-300',
+    },
+    {
+      name: 'Gold',
+      price: 'Rs 1,799',
+      duration: '1 year',
+      Icon: Crown,
+      color: 'text-yellow-700',
+      bg: 'bg-yellow-50',
+      border: 'border-yellow-400',
+      popular: true,
+    },
+    {
+      name: 'Diamond',
+      price: 'Rs 4,999',
+      duration: 'Lifetime',
+      Icon: Gem,
+      color: 'text-indigo-700',
+      bg: 'bg-indigo-50',
+      border: 'border-indigo-400',
+    },
+  ];
+
+  return (
+    <Modal open={open} onClose={onClose} title="" size="lg">
+      <div className="text-center mb-6">
+        <div className="mx-auto mb-3 flex h-14 w-14 items-center justify-center rounded-full bg-yellow-100">
+          <Sparkles className="h-7 w-7 text-yellow-500" />
+        </div>
+        <h2 className="text-xl font-bold text-gray-900">Medicine Limit Reached</h2>
+        <p className="mt-2 text-sm text-gray-500">
+          Your free trial allows up to <span className="font-semibold text-gray-700">20 medicines</span>.
+          Upgrade to a paid plan for unlimited medicine management.
+        </p>
+      </div>
+
+      <div className="grid grid-cols-3 gap-3 mb-6">
+        {plans.map((plan) => (
+          <div
+            key={plan.name}
+            className={`relative rounded-xl border-2 ${plan.border} ${plan.bg} p-4 text-center`}
+          >
+            {plan.popular && (
+              <span className="absolute -top-3 left-1/2 -translate-x-1/2 rounded-full bg-yellow-500 px-2.5 py-0.5 text-xs font-bold text-white">
+                Popular
+              </span>
+            )}
+            <plan.Icon className={`mx-auto mb-2 h-6 w-6 ${plan.color}`} />
+            <p className={`font-bold text-sm ${plan.color}`}>{plan.name}</p>
+            <p className="text-lg font-extrabold text-gray-900 mt-1">{plan.price}</p>
+            <p className="text-xs text-gray-500">{plan.duration}</p>
+            <p className="text-xs text-emerald-600 font-medium mt-1">Unlimited medicines</p>
+          </div>
+        ))}
+      </div>
+
+      <div className="flex gap-3">
+        <button
+          onClick={onClose}
+          className="flex-1 rounded-xl border border-gray-200 px-4 py-2.5 text-sm font-medium text-gray-600 hover:bg-gray-50 transition-colors"
+        >
+          Maybe Later
+        </button>
+        <button
+          onClick={() => { onClose(); router.push('/subscription/billing'); }}
+          className="flex-1 rounded-xl bg-blue-600 px-4 py-2.5 text-sm font-semibold text-white hover:bg-blue-700 transition-colors shadow"
+        >
+          Upgrade Now
+        </button>
+      </div>
+    </Modal>
+  );
+}
 
 // ── Types ─────────────────────────────────────────────────────────────────────
 
@@ -146,6 +236,7 @@ function BulkEntryForm({ categories, manufacturers, onAdd }: BulkFormProps) {
 // ── Main Page ─────────────────────────────────────────────────────────────────
 
 export default function MedicinesPage() {
+  const { subscription } = useAuth();
   const [medicines, setMedicines]       = useState<Medicine[]>([]);
   const [categories, setCategories]     = useState<Category[]>([]);
   const [manufacturers, setManufacturers] = useState<Manufacturer[]>([]);
@@ -172,6 +263,13 @@ export default function MedicinesPage() {
   const [showForm, setShowForm]         = useState(true);
   const [bulkSaving, setBulkSaving]     = useState(false);
   const [bulkResults, setBulkResults]   = useState<BulkCreateMedicineItemResult[] | null>(null);
+
+  // Medicine limit modal
+  const [limitModalOpen, setLimitModalOpen] = useState(false);
+
+  // Helper: check if limit is about to be hit before opening create modal
+  const isAtLimit = subscription?.medicineLimit != null
+    && medicines.length >= subscription.medicineLimit;
 
   const { register, handleSubmit, reset, formState: { errors } } = useForm<CreateMedicineDto>();
 
@@ -225,6 +323,7 @@ export default function MedicinesPage() {
   // ── Single add/edit ───────────────────────────────────────────────────────
 
   const openCreate = () => {
+    if (isAtLimit) { setLimitModalOpen(true); return; }
     reset({ tabletsPerStrip: 1, reorderLevel: 10, isActive: true, requiresPrescription: false });
     setEditing(null); setModalOpen(true);
   };
@@ -258,7 +357,16 @@ export default function MedicinesPage() {
       if (editing) { await medicineService.update(editing.medicineId, payload); toast.success('Medicine updated'); }
       else         { await medicineService.create(payload); toast.success('Medicine created'); }
       setModalOpen(false); await reload();
-    } catch (e: any) { toast.error(e.response?.data?.message ?? 'Something went wrong'); }
+    } catch (e: any) {
+      const msg: string = e.response?.data?.message ?? 'Something went wrong';
+      // Detect medicine limit error from backend and show upgrade modal
+      if (msg.toLowerCase().includes('plan allows a maximum') || msg.toLowerCase().includes('upgrade your plan')) {
+        setModalOpen(false);
+        setLimitModalOpen(true);
+      } else {
+        toast.error(msg);
+      }
+    }
     finally { setSaving(false); }
   };
 
@@ -284,6 +392,8 @@ export default function MedicinesPage() {
 
   const submitBulk = async () => {
     if (bulkRows.length === 0) { toast.error('Add at least one medicine'); return; }
+    // Check limit before sending
+    if (isAtLimit) { setBulkOpen(false); setLimitModalOpen(true); return; }
     const payload = bulkRows.map(({ _id, ...rest }) => ({
       ...rest,
       categoryId: rest.categoryId || null, manufacturerId: rest.manufacturerId || null,
@@ -295,7 +405,16 @@ export default function MedicinesPage() {
       const result = await medicineService.bulkCreate(payload);
       setBulkResults(result.results);
       if (result.totalCreated > 0) { toast.success(`${result.totalCreated} medicine(s) created`); await reload(); }
-      if (result.totalFailed > 0)  { toast.error(`${result.totalFailed} row(s) failed`); }
+      if (result.totalFailed > 0)  {
+        // If ALL failed due to limit, show upgrade modal
+        const limitFailed = result.results.filter(r => !r.success && r.message.toLowerCase().includes('upgrade your plan'));
+        if (limitFailed.length === result.totalFailed) {
+          setBulkOpen(false);
+          setLimitModalOpen(true);
+        } else {
+          toast.error(`${result.totalFailed} row(s) failed`);
+        }
+      }
     } catch (e: any) { toast.error(e.response?.data?.message ?? 'Bulk create failed'); }
     finally { setBulkSaving(false); }
   };
@@ -307,6 +426,34 @@ export default function MedicinesPage() {
 
   return (
     <AppLayout title="Medicines">
+
+      {/* Trial plan medicine limit banner */}
+      {subscription?.planType === 'Trial' && subscription.medicineLimit != null && (
+        <div className={`mb-4 flex items-center justify-between rounded-xl px-4 py-3 text-sm
+          ${medicines.length >= subscription.medicineLimit
+            ? 'bg-red-50 border border-red-200'
+            : medicines.length >= subscription.medicineLimit * 0.8
+              ? 'bg-yellow-50 border border-yellow-200'
+              : 'bg-blue-50 border border-blue-200'}`}
+        >
+          <div className="flex items-center gap-2">
+            <Pill className={`h-4 w-4 flex-shrink-0
+              ${medicines.length >= subscription.medicineLimit ? 'text-red-500'
+                : medicines.length >= subscription.medicineLimit * 0.8 ? 'text-yellow-600'
+                : 'text-blue-500'}`} />
+            <span className={medicines.length >= subscription.medicineLimit ? 'text-red-700 font-medium' : 'text-gray-700'}>
+              <span className="font-semibold">{medicines.length}</span> / {subscription.medicineLimit} medicines used
+              {medicines.length >= subscription.medicineLimit && ' — Limit reached'}
+            </span>
+          </div>
+          <button
+            onClick={() => setLimitModalOpen(true)}
+            className="rounded-lg bg-blue-600 px-3 py-1.5 text-xs font-semibold text-white hover:bg-blue-700 transition-colors"
+          >
+            Upgrade Plan
+          </button>
+        </div>
+      )}
 
       {/* Header */}
       <div className="mb-6 flex flex-col gap-4 sm:flex-row sm:items-center sm:justify-between">
@@ -486,6 +633,9 @@ export default function MedicinesPage() {
       <ConfirmDialog open={!!deleteTarget} title="Delete Medicine"
         message={`Delete "${deleteTarget?.name}"? This cannot be undone.`}
         onConfirm={handleDelete} onCancel={() => setDeleteTarget(null)} loading={deleting} />
+
+      {/* ── Medicine Limit / Upgrade Modal ─────────────────────────────────── */}
+      <MedicineLimitModal open={limitModalOpen} onClose={() => setLimitModalOpen(false)} />
 
       {/* ── Units Modal ─────────────────────────────────────────────────────── */}
       <Modal open={!!unitsTarget} onClose={() => setUnitsTarget(null)}

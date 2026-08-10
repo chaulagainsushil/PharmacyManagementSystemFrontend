@@ -11,7 +11,6 @@ export interface TenantSignupDto {
   password: string;
   confirmPassword: string;
   pharmacyName: string;
-  initialPlan: PlanType;
 }
 
 /** Used for adding a pharmacist inside an existing tenant (POST /api/auth/signup) */
@@ -37,7 +36,7 @@ export interface AuthResponse {
 
 // ── Subscription ──────────────────────────────────────────────────────────────
 
-export type PlanType = 'Silver' | 'Gold' | 'Diamond';
+export type PlanType = 'Trial' | 'Silver' | 'Gold' | 'Diamond';
 export type SubscriptionStatus = 'Active' | 'Expired' | 'Cancelled';
 
 export interface SubscriptionInfo {
@@ -52,6 +51,8 @@ export interface SubscriptionInfo {
   isActive: boolean;
   /** null for Diamond plans or when already expired */
   daysRemaining: number | null;
+  /** null means unlimited (Silver, Gold, Diamond). 20 for Trial. */
+  medicineLimit: number | null;
 }
 
 export interface RenewSubscriptionDto {
