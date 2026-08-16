@@ -15,6 +15,7 @@ import type { PlanType } from '@/types';
 const navItems = [
   { href: '/dashboard',              label: 'Dashboard',        icon: LayoutDashboard },
   { href: '/medicines',              label: 'Medicines',         icon: Pill },
+  { href: '/products',               label: 'Products',          icon: Package },
   { href: '/batches',                label: 'Batches',           icon: Package },
   { href: '/units',                  label: 'Units of Measure',  icon: Ruler },
   { href: '/customers',              label: 'Customers',         icon: Users },

@@ -30,8 +30,8 @@ type FormValues = {
   supplierId?: number;
   manufactureDate?: string;
   expiryDate: string;
-  quantityInTablets: number;
-  purchasePricePerTablet: number;
+  quantityInBaseUnit: number;
+  purchasePricePerBaseUnit: number;
   receivedDate: string;
 };
 
@@ -45,8 +45,8 @@ function newBulkRow(): BulkBatchRow {
     supplierId: undefined,
     manufactureDate: undefined,
     expiryDate: '',
-    quantityInTablets: 0,
-    purchasePricePerTablet: 0,
+    quantityInBaseUnit: 0,
+    purchasePricePerBaseUnit: 0,
     receivedDate: new Date().toISOString().split('T')[0],
   };
 }
@@ -71,8 +71,8 @@ function BulkEntryForm({ medicines, suppliers, onAdd }: BulkFormProps) {
       _id: Math.random().toString(36).slice(2),
       medicineId: Number(data.medicineId),
       supplierId: data.supplierId ? Number(data.supplierId) : undefined,
-      quantityInTablets: Number(data.quantityInTablets),
-      purchasePricePerTablet: Number(data.purchasePricePerTablet),
+      quantityInBaseUnit: Number(data.quantityInBaseUnit),
+      purchasePricePerBaseUnit: Number(data.purchasePricePerBaseUnit),
       expiryDate: new Date(data.expiryDate).toISOString(),
       receivedDate: new Date(data.receivedDate).toISOString(),
       manufactureDate: data.manufactureDate
@@ -144,20 +144,20 @@ function BulkEntryForm({ medicines, suppliers, onAdd }: BulkFormProps) {
         />
 
         <FormField
-          label="Quantity (Tablets) *"
+          label="Quantity (Base Units) *"
           type="number"
           min={1}
-          error={errors.quantityInTablets?.message}
-          {...register('quantityInTablets', { required: true, min: 1 })}
+          error={errors.quantityInBaseUnit?.message}
+          {...register('quantityInBaseUnit', { required: true, min: 1 })}
         />
 
         <FormField
-          label="Purchase Price / Tablet *"
+          label="Purchase Price / Base Unit *"
           type="number"
           step="0.0001"
           min={0}
-          error={errors.purchasePricePerTablet?.message}
-          {...register('purchasePricePerTablet', { required: true })}
+          error={errors.purchasePricePerBaseUnit?.message}
+          {...register('purchasePricePerBaseUnit', { required: true })}
         />
       </div>
 
@@ -236,8 +236,8 @@ export default function BatchesPage() {
         ...data,
         medicineId: Number(data.medicineId),
         supplierId: data.supplierId ? Number(data.supplierId) : null,
-        quantityInTablets: Number(data.quantityInTablets),
-        purchasePricePerTablet: Number(data.purchasePricePerTablet),
+        quantityInBaseUnit: Number(data.quantityInBaseUnit),
+        purchasePricePerBaseUnit: Number(data.purchasePricePerBaseUnit),
         expiryDate: new Date(data.expiryDate).toISOString(),
         receivedDate: new Date(data.receivedDate).toISOString(),
         manufactureDate: data.manufactureDate
@@ -377,8 +377,8 @@ export default function BatchesPage() {
               </div>
               <div className="mt-3 grid grid-cols-2 gap-2 text-xs text-gray-500">
                 <div><span className="font-medium text-gray-700">Supplier:</span> {b.supplierName ?? '—'}</div>
-                <div><span className="font-medium text-gray-700">Qty:</span> {b.quantityInTablets.toLocaleString()} tabs</div>
-                <div><span className="font-medium text-gray-700">Price:</span> Rs {Number(b.purchasePricePerTablet).toFixed(2)}/tab</div>
+                <div><span className="font-medium text-gray-700">Qty:</span> {b.quantityInBaseUnit.toLocaleString()} units</div>
+                <div><span className="font-medium text-gray-700">Price:</span> Rs {Number(b.purchasePricePerBaseUnit).toFixed(2)}/unit</div>
                 <div><span className="font-medium text-gray-700">Expiry:</span> {format(new Date(b.expiryDate), 'dd MMM yyyy')}</div>
               </div>
               <div className="mt-2">
@@ -400,7 +400,7 @@ export default function BatchesPage() {
               <tr className="border-b border-gray-100 bg-slate-100 text-left text-xs font-semibold uppercase tracking-wide text-gray-500">
                 <th className="px-6 py-3">Medicine / Batch</th>
                 <th className="px-6 py-3">Supplier</th>
-                <th className="px-6 py-3">Qty (Tabs)</th>
+                <th className="px-6 py-3">Qty (Base Units)</th>
                 <th className="px-6 py-3">Purchase Price</th>
                 <th className="px-6 py-3">Expiry</th>
                 <th className="px-6 py-3 text-right">Actions</th>
@@ -423,8 +423,8 @@ export default function BatchesPage() {
                       <p className="text-xs text-gray-500">Batch: {b.batchNumber}</p>
                     </td>
                     <td className="px-6 py-3 text-gray-600">{b.supplierName ?? '—'}</td>
-                    <td className="px-6 py-3 font-semibold text-gray-900">{b.quantityInTablets.toLocaleString()}</td>
-                    <td className="px-6 py-3 text-gray-600">Rs {Number(b.purchasePricePerTablet).toFixed(2)}/tab</td>
+                    <td className="px-6 py-3 font-semibold text-gray-900">{b.quantityInBaseUnit.toLocaleString()}</td>
+                    <td className="px-6 py-3 text-gray-600">Rs {Number(b.purchasePricePerBaseUnit).toFixed(2)}/unit</td>
                     <td className="px-6 py-3">
                       <p className="text-gray-700">{format(new Date(b.expiryDate), 'dd MMM yyyy')}</p>
                       {b.isExpired ? <Badge variant="red">Expired</Badge>
@@ -506,19 +506,19 @@ export default function BatchesPage() {
             {...register('expiryDate', { required: 'Required' })}
           />
           <FormField
-            label="Quantity (Tablets) *"
+            label="Quantity (Base Units) *"
             type="number"
             min={1}
-            error={errors.quantityInTablets?.message}
-            {...register('quantityInTablets', { required: true, min: 1 })}
+            error={errors.quantityInBaseUnit?.message}
+            {...register('quantityInBaseUnit', { required: true, min: 1 })}
           />
           <FormField
-            label="Purchase Price / Tablet *"
+            label="Purchase Price / Base Unit *"
             type="number"
             step="0.0001"
             min={0}
-            error={errors.purchasePricePerTablet?.message}
-            {...register('purchasePricePerTablet', { required: true })}
+            error={errors.purchasePricePerBaseUnit?.message}
+            {...register('purchasePricePerBaseUnit', { required: true })}
           />
           <div className="col-span-2 flex justify-end gap-3 pt-2">
             <button
@@ -621,7 +621,7 @@ export default function BatchesPage() {
                           </td>
                           <td className="px-4 py-2 text-slate-600">{row.batchNumber}</td>
                           <td className="px-4 py-2 text-slate-600">
-                            {Number(row.quantityInTablets).toLocaleString()}
+                            {Number(row.quantityInBaseUnit).toLocaleString()}
                           </td>
                           <td className="px-4 py-2 text-slate-600">
                             {row.expiryDate ? format(new Date(row.expiryDate), 'dd MMM yyyy') : '—'}

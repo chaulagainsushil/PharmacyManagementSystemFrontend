@@ -1,5 +1,5 @@
 import api from '@/lib/api';
-import type { Medicine, CreateMedicineDto, BulkCreateMedicineResult } from '@/types';
+import type { Medicine, CreateMedicineDto, UpdateMedicineDto, BulkCreateMedicineResult } from '@/types';
 
 export const medicineService = {
   getAll: () => api.get<Medicine[]>('/api/medicine').then((r) => r.data),
@@ -8,7 +8,7 @@ export const medicineService = {
   getById: (id: number) => api.get<Medicine>(`/api/medicine/${id}`).then((r) => r.data),
   create: (dto: CreateMedicineDto) =>
     api.post<Medicine>('/api/medicine', dto).then((r) => r.data),
-  update: (id: number, dto: CreateMedicineDto) =>
+  update: (id: number, dto: UpdateMedicineDto) =>
     api.put<Medicine>(`/api/medicine/${id}`, dto).then((r) => r.data),
   delete: (id: number) => api.delete(`/api/medicine/${id}`).then((r) => r.data),
   bulkCreate: (dtos: CreateMedicineDto[]) =>

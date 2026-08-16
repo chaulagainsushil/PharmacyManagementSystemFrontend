@@ -58,13 +58,13 @@ export default function DashboardPage() {
       .finally(() => setLoading(false));
   }, []);
 
-  const lowStock     = medicines.filter(m => m.totalStockInTablets <= m.reorderLevel && m.isActive);
+  const lowStock     = medicines.filter(m => m.totalStockInBaseUnit <= m.reorderLevel && m.isActive);
   const expiringSoon = batches.filter(b => {
     const days = (new Date(b.expiryDate).getTime() - Date.now()) / 86400000;
     return !b.isExpired && days <= 90;
   });
   const expired    = batches.filter(b => b.isExpired);
-  const totalStock = medicines.reduce((s, m) => s + m.totalStockInTablets, 0);
+  const totalStock = medicines.reduce((s, m) => s + m.totalStockInBaseUnit, 0);
 
   // Bar chart helper — find max revenue for scaling
   const maxRevenue = Math.max(...monthlySales.map(m => m.totalRevenue), 1);
@@ -252,7 +252,7 @@ export default function DashboardPage() {
                   <p className="text-xs text-slate-400">{m.genericName ?? '—'}</p>
                 </div>
                 <div className="text-right">
-                  <p className="text-sm font-bold text-red-600">{m.totalStockInTablets} tabs</p>
+                  <p className="text-sm font-bold text-red-600">{m.totalStockInBaseUnit} units</p>
                   <p className="text-xs text-slate-400">reorder @ {m.reorderLevel}</p>
                 </div>
               </div>

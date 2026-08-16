@@ -14,6 +14,42 @@ export interface UpdateMedicineUnitPriceCommand {
   unitPrice: number;
 }
 
+export interface DualUnitBaseEntry {
+  unitOfMeasureId: number;
+  costPrice?: number;
+  unitPrice?: number;
+  mrp?: number;
+  canPurchase?: boolean;
+  canSell?: boolean;
+  isDefault?: boolean;
+}
+
+export interface DualUnitSubEntry {
+  unitOfMeasureId: number;
+  conversionFactorToBase: number;
+  costPrice?: number;
+  unitPrice?: number;
+  mrp?: number;
+  canPurchase?: boolean;
+  canSell?: boolean;
+}
+
+export interface AddDualUnitCommand {
+  baseUnit: DualUnitBaseEntry;
+  subUnit?: DualUnitSubEntry;
+  useAutoCalculatedPrice?: boolean;
+}
+
+export interface MedicineUnitWithTotals extends MedicineUnit {
+  totalInBaseUnits: number;
+}
+
+export interface MedicineUnitsResponse {
+  medicineId: number;
+  medicineName: string;
+  units: MedicineUnitWithTotals[];
+}
+
 export const medicineUnitService = {
   /** All units for a medicine (management view, includes inactive) */
   getByMedicine: (medicineId: number) =>
@@ -38,4 +74,12 @@ export const medicineUnitService = {
   /** Deactivate (soft-delete) a unit */
   deactivate: (medicineUnitId: number) =>
     api.delete<{ message: string }>(`/api/medicineunit/${medicineUnitId}`).then((r) => r.data),
+
+  /** Convenience endpoint: attach base + optional sub unit in one call */
+  addDualUnit: (medicineId: number, cmd: AddDualUnitCommand) =>
+    api.post<MedicineUnit[]>(`/api/medicines/${medicineId}/units`, cmd).then((r) => r.data),
+
+  /** Get units with TotalInBaseUnits */
+  getUnitsWithTotals: (medicineId: number) =>
+    api.get<MedicineUnitsResponse>(`/api/medicines/${medicineId}/units`).then((r) => r.data),
 };

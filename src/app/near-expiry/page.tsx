@@ -128,12 +128,12 @@ export default function NearExpiryPage() {
               </div>
               <div className="mt-3 grid grid-cols-2 gap-2 text-xs text-gray-500">
                 <div><span className="font-medium text-gray-700">Supplier:</span> {b.supplierName ?? '—'}</div>
-                <div><span className="font-medium text-gray-700">Stock:</span> {b.quantityInTablets.toLocaleString()} tabs</div>
+                <div><span className="font-medium text-gray-700">Stock:</span> {b.quantityInBaseUnit.toLocaleString()} units</div>
                 <div>
                   <span className="font-medium text-gray-700">Expiry:</span>{' '}
                   {format(new Date(b.expiryDate), 'dd MMM yyyy')}
                 </div>
-                <div><span className="font-medium text-gray-700">Price:</span> Rs {Number(b.purchasePricePerTablet).toFixed(2)}/tab</div>
+                <div><span className="font-medium text-gray-700">Price:</span> Rs {Number(b.purchasePricePerBaseUnit).toFixed(2)}/tab</div>
               </div>
             </div>
           );
@@ -173,7 +173,7 @@ export default function NearExpiryPage() {
                     <td className="px-6 py-3 font-mono text-xs text-gray-600">{b.batchNumber}</td>
                     <td className="px-6 py-3 text-gray-600">{b.supplierName ?? '—'}</td>
                     <td className="px-6 py-3 font-semibold text-gray-900">
-                      {b.quantityInTablets.toLocaleString()}
+                      {b.quantityInBaseUnit.toLocaleString()}
                     </td>
                     <td className="px-6 py-3 text-gray-700">
                       {format(new Date(b.expiryDate), 'dd MMM yyyy')}

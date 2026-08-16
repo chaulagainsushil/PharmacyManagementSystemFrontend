@@ -240,8 +240,8 @@ export function MedicineRow({ row, medicines, onChange, onRemove, onMedicineSele
               {!loading &&
                 list.map((m, idx) => {
                   const isSel = m.medicineId === row.medicineId;
-                  const oos   = m.totalStockInTablets === 0;
-                  const low   = !oos && m.totalStockInTablets <= m.reorderLevel;
+                  const oos   = m.totalStockInBaseUnit === 0;
+                  const low   = !oos && m.totalStockInBaseUnit <= m.reorderLevel;
                   // Show unit count from the medicine's units array if loaded
                   const unitCount = m.units?.length ?? 0;
                   return (
@@ -288,11 +288,11 @@ export function MedicineRow({ row, medicines, onChange, onRemove, onMedicineSele
                           <span className="rounded-full bg-red-100 px-2 py-0.5 text-xs font-semibold text-red-600">Out</span>
                         ) : low ? (
                           <span className="rounded-full bg-orange-100 px-2 py-0.5 text-xs font-semibold text-orange-600">
-                            {m.totalStockInTablets} ⚠
+                            {m.totalStockInBaseUnit} ⚠
                           </span>
                         ) : (
                           <>
-                            <p className="text-base font-bold text-emerald-600">{m.totalStockInTablets.toLocaleString()}</p>
+                            <p className="text-base font-bold text-emerald-600">{m.totalStockInBaseUnit.toLocaleString()}</p>
                             <p className="text-xs text-gray-400">base units</p>
                           </>
                         )}
@@ -323,8 +323,8 @@ export function MedicineRow({ row, medicines, onChange, onRemove, onMedicineSele
         {/* Info bar below selected medicine */}
         {selected && !open && (
           <p className="mt-1 pl-1 text-xs text-gray-400">
-            <span className={selected.totalStockInTablets <= selected.reorderLevel ? 'font-semibold text-orange-500' : ''}>
-              {selected.totalStockInTablets.toLocaleString()} base units in stock
+            <span className={selected.totalStockInBaseUnit <= selected.reorderLevel ? 'font-semibold text-orange-500' : ''}>
+              {selected.totalStockInBaseUnit.toLocaleString()} base units in stock
             </span>
             {selected.requiresPrescription && (
               <span className="ml-1.5 rounded bg-purple-100 px-1 py-0.5 text-xs font-semibold text-purple-700">Rx</span>

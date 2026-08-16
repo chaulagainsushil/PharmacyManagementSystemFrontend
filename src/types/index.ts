@@ -134,7 +134,12 @@ export interface MedicineUnit {
   isBaseUnit: boolean;
   isDefault: boolean;
   isActive: boolean;
+  canPurchase: boolean;
+  canSell: boolean;
+  costPrice: number;
   unitPrice: number;
+  mrp: number;
+  updatedAt?: string;
 }
 
 export interface MedicineUnitForPos {
@@ -142,17 +147,33 @@ export interface MedicineUnitForPos {
   uomName: string;
   uomSymbol: string;
   unitPrice: number;
+  mrp: number;
   conversionFactorToBase: number;
   isDefault: boolean;
   isBaseUnit: boolean;
+  updatedAt?: string;
+}
+
+export interface MedicineUnitForPurchase {
+  medicineUnitId: number;
+  uomName: string;
+  uomSymbol: string;
+  costPrice: number;
+  conversionFactorToBase: number;
+  isBaseUnit: boolean;
+  updatedAt?: string;
 }
 
 export interface CreateMedicineUnitDto {
   unitOfMeasureId: number;
-  conversionFactorToBase: number;
-  unitPrice: number;
-  isBaseUnit: boolean;
-  isDefault: boolean;
+  conversionFactorToBase?: number;
+  canPurchase?: boolean;
+  canSell?: boolean;
+  costPrice?: number;
+  unitPrice?: number;
+  mrp?: number;
+  isBaseUnit?: boolean;
+  isDefault?: boolean;
 }
 
 // ── Medicine ─────────────────────────────────────────────────────────────────
@@ -164,16 +185,12 @@ export interface Medicine {
   categoryName?: string | null;
   manufacturerId?: number | null;
   manufacturerName?: string | null;
-  tabletsPerStrip: number;
-  strapsPerBox: number;
-  totalTabletsPerBox: number;
-  stripPrice: number;
-  tabletPrice: number;
   reorderLevel: number;
   requiresPrescription: boolean;
   isActive: boolean;
-  totalStockInTablets: number;
+  totalStockInBaseUnit: number;
   createdAt?: string;
+  updatedAt?: string;
   units: MedicineUnit[];
 }
 
@@ -182,14 +199,22 @@ export interface CreateMedicineDto {
   genericName?: string;
   categoryId?: number | null;
   manufacturerId?: number | null;
-  tabletsPerStrip: number;
-  strapsPerBox: number;
-  stripPrice: number;
-  tabletPrice: number;
-  reorderLevel: number;
-  requiresPrescription: boolean;
-  isActive: boolean;
-  units?: CreateMedicineUnitDto[];
+  reorderLevel?: number;
+  requiresPrescription?: boolean;
+  isActive?: boolean;
+  units: CreateMedicineUnitDto[];
+}
+
+export interface UpdateMedicineDto {
+  name?: string;
+  genericName?: string;
+  categoryId?: number | null;
+  manufacturerId?: number | null;
+  reorderLevel?: number;
+  requiresPrescription?: boolean;
+  isActive?: boolean;
+  units?: CreateMedicineUnitDto[] | null;
+  updatedAt?: string;
 }
 
 export interface BulkCreateMedicineItemResult {
@@ -216,8 +241,8 @@ export interface MedicineBatch {
   supplierName?: string | null;
   manufactureDate?: string | null;
   expiryDate: string;
-  quantityInTablets: number;
-  purchasePricePerTablet: number;
+  quantityInBaseUnit: number;
+  purchasePricePerBaseUnit: number;
   receivedDate: string;
   isExpired: boolean;
 }
@@ -228,8 +253,8 @@ export interface CreateMedicineBatchDto {
   supplierId?: number | null;
   manufactureDate?: string | null;
   expiryDate: string;
-  quantityInTablets: number;
-  purchasePricePerTablet: number;
+  quantityInBaseUnit: number;
+  purchasePricePerBaseUnit: number;
   receivedDate: string;
 }
 
@@ -340,7 +365,7 @@ export interface DisposalItemResponse {
   medicineName: string;
   batchId: number;
   batchNumber: string;
-  quantityInTablets: number;
+  quantityInBaseUnit: number;
   reason: string;
 }
 
@@ -356,7 +381,7 @@ export interface DisposalResponse {
 export interface CreateDisposalItemDto {
   medicineId: number;
   batchId: number;
-  quantityInTablets: number;
+  quantityInBaseUnit: number;
   reason: string;
 }
 
@@ -441,4 +466,36 @@ export interface StockConsumptionReport {
   items: StockConsumptionItem[];
   totalQuantitySold: number;
   totalRevenue: number;
+}
+
+
+// ── Products and Product Units ────────────────────────────────────────────────
+
+export interface Product {
+  productId: number;
+  tenantId: string;
+  name: string;
+  description?: string;
+  isActive: boolean;
+  createdAt: string;
+  updatedAt: string;
+}
+
+export interface ProductUnitDto {
+  productUnitId: number;
+  productId: number;
+  unitOfMeasureId: number;
+  uomName: string;
+  uomSymbol: string;
+  isBaseUnit: boolean;
+  conversionFactorToBase: number;
+  totalUnitQty: number;
+  purchasePrice: number;
+  salePrice: number;
+  updatedAt: string;
+}
+
+export interface ProductUnitsResponse {
+  productId: number;
+  units: ProductUnitDto[];
 }

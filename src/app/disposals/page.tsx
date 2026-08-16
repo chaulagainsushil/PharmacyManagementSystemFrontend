@@ -24,7 +24,7 @@ interface DisposalRow {
   _id: string;
   medicineId: number;
   batchId: number;
-  quantityInTablets: number;
+  quantityInBaseUnit: number;
   reason: string;
 }
 
@@ -33,7 +33,7 @@ function newRow(): DisposalRow {
     _id: Math.random().toString(36).slice(2),
     medicineId: 0,
     batchId: 0,
-    quantityInTablets: 1,
+    quantityInBaseUnit: 1,
     reason: '',
   };
 }
@@ -82,7 +82,7 @@ export default function DisposalsPage() {
 
   // Batches available for a given medicine (non-expired only for filter; all for disposal)
   const batchesForMedicine = (medicineId: number) =>
-    allBatches.filter(b => b.medicineId === medicineId && b.quantityInTablets > 0);
+    allBatches.filter(b => b.medicineId === medicineId && b.quantityInBaseUnit > 0);
 
   // ── Submit ────────────────────────────────────────────────────────────────
 
@@ -98,7 +98,7 @@ export default function DisposalsPage() {
     const items: CreateDisposalItemDto[] = validRows.map(r => ({
       medicineId: r.medicineId,
       batchId: r.batchId,
-      quantityInTablets: r.quantityInTablets,
+      quantityInBaseUnit: r.quantityInBaseUnit,
       reason: r.reason.trim(),
     }));
 
@@ -253,13 +253,13 @@ export default function DisposalsPage() {
                         <option value="">— Select batch —</option>
                         {batchOptions.map(b => (
                           <option key={b.batchId} value={b.batchId}>
-                            {b.batchNumber} ({b.quantityInTablets} tabs, exp {format(new Date(b.expiryDate), 'MMM yyyy')})
+                            {b.batchNumber} ({b.quantityInBaseUnit} units, exp {format(new Date(b.expiryDate), 'MMM yyyy')})
                           </option>
                         ))}
                       </select>
                       {selectedBatch && (
                         <p className="mt-0.5 text-xs text-gray-400">
-                          Available: {selectedBatch.quantityInTablets.toLocaleString()} tablets
+                          Available: {selectedBatch.quantityInBaseUnit.toLocaleString()} tablets
                         </p>
                       )}
                     </div>
@@ -270,9 +270,9 @@ export default function DisposalsPage() {
                       <input
                         type="number"
                         min={1}
-                        max={selectedBatch?.quantityInTablets}
-                        value={row.quantityInTablets}
-                        onChange={e => updateRow(row._id, { quantityInTablets: Math.max(1, Number(e.target.value)) })}
+                        max={selectedBatch?.quantityInBaseUnit}
+                        value={row.quantityInBaseUnit}
+                        onChange={e => updateRow(row._id, { quantityInBaseUnit: Math.max(1, Number(e.target.value)) })}
                         className="w-full rounded-lg border border-gray-200 bg-white px-2 py-1.5 text-sm outline-none focus:border-blue-500 focus:ring-1 focus:ring-blue-200"
                       />
                     </div>
@@ -362,7 +362,7 @@ export default function DisposalsPage() {
                     <tr key={item.disposalItemId}>
                       <td className="px-4 py-2.5 font-medium text-gray-900">{item.medicineName}</td>
                       <td className="px-4 py-2.5 text-gray-500 font-mono text-xs">{item.batchNumber}</td>
-                      <td className="px-4 py-2.5 text-gray-700">{item.quantityInTablets.toLocaleString()}</td>
+                      <td className="px-4 py-2.5 text-gray-700">{item.quantityInBaseUnit.toLocaleString()}</td>
                       <td className="px-4 py-2.5 text-gray-600">{item.reason}</td>
                     </tr>
                   ))}
