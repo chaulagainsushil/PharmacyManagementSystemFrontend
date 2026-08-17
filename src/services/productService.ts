@@ -1,5 +1,5 @@
 import api from '@/lib/api';
-import type { Product, ProductUnit } from '@/types';
+import type { Product, ProductUnitDto } from '@/types';
 
 export interface CreateProductDto {
   name: string;
@@ -12,7 +12,7 @@ export interface UpdateProductDto extends CreateProductDto {
 }
 
 export interface ProductWithUnits extends Product {
-  units: ProductUnit[];
+  units: ProductUnitDto[];
 }
 
 export const productService = {
