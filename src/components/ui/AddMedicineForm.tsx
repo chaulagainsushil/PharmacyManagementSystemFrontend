@@ -179,33 +179,33 @@ export function AddMedicineForm({ onSuccess, onCancel }: Props) {
     try {
       const units: CreateMedicineUnitDto[] = [];
 
-      // Unit 1 — base unit (Strip/Box level)
-      units.push({
-        unitOfMeasureId: parseInt(unit1.uomId),
-        conversionFactorToBase: parseFloat(unit1.piecesPerUnit) || 1,
-        costPrice: parseFloat(unit1.purchasePrice) || 0,
-        unitPrice: parseFloat(unit1.sellPrice) || 0,
-        mrp: parseFloat(unit1.mrp) || 0,
-        isBaseUnit: false,
-        isDefault: true,
-        canPurchase: true,
-        canSell: true,
-      });
-
-      // Unit 2 — atomic/smallest unit (Tablet level)
+      // Unit 2 — atomic/smallest unit (Tablet level) - THIS IS THE BASE UNIT
       if (showUnit2 && unit2.uomId) {
         units.push({
           unitOfMeasureId: parseInt(unit2.uomId),
-          conversionFactorToBase: 1,
+          conversionFactorToBase: 1, // Base unit always has factor of 1
           costPrice: parseFloat(unit2.purchasePrice) || 0,
           unitPrice: parseFloat(unit2.sellPrice) || 0,
           mrp: parseFloat(unit2.mrp) || 0,
-          isBaseUnit: true,
-          isDefault: false,
+          isBaseUnit: true, // This is the base unit (smallest/atomic unit)
+          isDefault: false, // Not default for POS
           canPurchase: false,
           canSell: true,
         });
       }
+
+      // Unit 1 — packaging unit (Strip/Box level) - THIS CONVERTS TO BASE UNIT
+      units.push({
+        unitOfMeasureId: parseInt(unit1.uomId),
+        conversionFactorToBase: showUnit2 ? (parseFloat(unit1.piecesPerUnit) || 1) : 1, // Factor = 1 if it's the base unit
+        costPrice: parseFloat(unit1.purchasePrice) || 0,
+        unitPrice: parseFloat(unit1.sellPrice) || 0,
+        mrp: parseFloat(unit1.mrp) || 0,
+        isBaseUnit: !showUnit2, // Base unit only if Unit 2 is not shown
+        isDefault: true, // Default for POS
+        canPurchase: true,
+        canSell: true,
+      });
 
       const dto: CreateMedicineDto = {
         name: medicineName.trim(),
