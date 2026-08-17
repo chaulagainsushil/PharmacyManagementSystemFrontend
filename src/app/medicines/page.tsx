@@ -19,6 +19,8 @@ import { UnitsManager } from '@/components/ui/UnitsManager';
 import { SimpleMedicineUnitForm } from '@/components/ui/SimpleMedicineUnitForm';
 import { SimpleDualUnitEditor } from '@/components/ui/SimpleDualUnitEditor';
 import { UnitCalculator } from '@/components/ui/UnitCalculator';
+import { AddMedicineForm } from '@/components/ui/AddMedicineForm';
+import { EditMedicineForm } from '@/components/ui/EditMedicineForm';
 import { medicineService } from '@/services/medicineService';
 import { categoryService } from '@/services/categoryService';
 import { manufacturerService } from '@/services/manufacturerService';
@@ -1071,111 +1073,41 @@ export default function MedicinesPage() {
         </div>
       )}
 
-      {/* Create/Edit Modal */}
+      {/* Create New Medicine Modal - Using AddMedicineForm component */}
       <Modal
-        open={modalOpen}
+        open={modalOpen && !editing}
         onClose={() => setModalOpen(false)}
-        title={editing ? 'Edit Medicine' : 'Add New Medicine'}
-        size="lg"
+        title="Add New Medicine"
+        size="xl"
       >
-        <form onSubmit={handleSubmit(onSubmit)} className="space-y-4">
-          <div className="grid grid-cols-2 gap-3">
-            <div className="col-span-2">
-              <FormField
-                label="Medicine Name *"
-                placeholder="e.g. Paracetamol 500mg"
-                error={errors.name?.message}
-                {...register('name', { required: 'Medicine name is required' })}
-              />
-            </div>
-            <FormField
-              label="Generic Name"
-              placeholder="e.g. Acetaminophen"
-              {...register('genericName')}
-            />
-            <div>
-              <label className="block text-sm font-medium text-gray-700 mb-1.5">Category</label>
-              <select
-                {...register('categoryId')}
-                className="w-full rounded-lg border border-gray-200 px-3 py-2 text-sm outline-none focus:border-blue-500 focus:ring-2 focus:ring-blue-100"
-              >
-                <option value="">— None —</option>
-                {categories.map(c => (
-                  <option key={c.categoryId} value={c.categoryId}>
-                    {c.categoryName}
-                  </option>
-                ))}
-              </select>
-            </div>
-            <div>
-              <label className="block text-sm font-medium text-gray-700 mb-1.5">Manufacturer</label>
-              <select
-                {...register('manufacturerId')}
-                className="w-full rounded-lg border border-gray-200 px-3 py-2 text-sm outline-none focus:border-blue-500 focus:ring-2 focus:ring-blue-100"
-              >
-                <option value="">— None —</option>
-                {manufacturers.map(m => (
-                  <option key={m.manufacturerId} value={m.manufacturerId}>
-                    {m.name}
-                  </option>
-                ))}
-              </select>
-            </div>
-            <FormField
-              label="Reorder Level"
-              type="number"
-              min={0}
-              {...register('reorderLevel')}
-            />
-            <div className="col-span-2 flex gap-6">
-              <label className="flex items-center gap-2 text-sm cursor-pointer">
-                <input
-                  type="checkbox"
-                  className="h-4 w-4 rounded text-blue-600"
-                  {...register('isActive')}
-                  defaultChecked
-                />
-                Active
-              </label>
-              <label className="flex items-center gap-2 text-sm cursor-pointer">
-                <input
-                  type="checkbox"
-                  className="h-4 w-4 rounded text-purple-600"
-                  {...register('requiresPrescription')}
-                />
-                Requires Prescription
-              </label>
-            </div>
-          </div>
-
-          <SimpleDualUnitEditor
-            unit1={unit1}
-            unit2={unit2}
-            uoms={uoms}
-            onUnit1Change={setUnit1}
-            onUnit2Change={setUnit2}
-            showUnit2={showUnit2}
-            onShowUnit2Change={setShowUnit2}
-          />
-
-          <div className="flex gap-3 justify-end pt-4">
-            <button
-              type="button"
-              onClick={() => setModalOpen(false)}
-              className="rounded-lg border border-gray-300 px-4 py-2 text-sm font-semibold text-gray-700 hover:bg-gray-50 transition-colors"
-            >
-              Cancel
-            </button>
-            <button
-              type="submit"
-              disabled={saving}
-              className="rounded-lg bg-blue-600 px-4 py-2 text-sm font-semibold text-white hover:bg-blue-700 disabled:bg-gray-400 transition-colors"
-            >
-              {saving ? <LoadingSpinner /> : editing ? 'Update' : 'Create'}
-            </button>
-          </div>
-        </form>
+        <AddMedicineForm
+          onSuccess={() => {
+            setModalOpen(false);
+            loadAll();
+          }}
+          onCancel={() => setModalOpen(false)}
+        />
       </Modal>
+
+      {/* Edit Medicine Modal */}
+      {editing && (
+        <Modal
+          open={modalOpen && editing !== null}
+          onClose={() => { setModalOpen(false); setEditing(null); }}
+          title="Edit Medicine"
+          size="lg"
+        >
+          <EditMedicineForm
+            medicineId={editing.medicineId}
+            onSuccess={() => {
+              setModalOpen(false);
+              setEditing(null);
+              loadAll();
+            }}
+            onCancel={() => { setModalOpen(false); setEditing(null); }}
+          />
+        </Modal>
+      )}
 
       {/* Delete Confirmation */}
       <ConfirmDialog

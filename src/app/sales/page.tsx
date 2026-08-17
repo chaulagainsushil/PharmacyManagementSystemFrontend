@@ -12,6 +12,7 @@ import { Modal } from '@/components/ui/Modal';
 import { MedicineRow } from '@/components/ui/MedicineRow';
 import { BillPrint } from '@/components/ui/BillPrint';
 import { LoadingSpinner } from '@/components/ui/LoadingSpinner';
+import { DualUnitSalesGuide } from '@/components/ui/DualUnitSalesGuide';
 import { medicineService } from '@/services/medicineService';
 import { customerService } from '@/services/customerService';
 import { saleService } from '@/services/saleService';
@@ -40,6 +41,7 @@ function generateId() { return Math.random().toString(36).slice(2); }
 function emptyRow(): CartItem {
   return {
     id:             generateId(),
+    itemType:       'Medicine',
     medicineId:     0,
     medicineName:   '',
     medicineUnitId: 0,
@@ -287,6 +289,11 @@ export default function SalesPage() {
 
         {/* ── Medicine Table ───────────────────────────────────────────────── */}
         <div className="rounded-2xl border border-gray-100 bg-white shadow-sm overflow-hidden">
+          {/* Dual Unit Sales Guide */}
+          <div className="border-b border-gray-100 px-5 py-3 bg-blue-50">
+            <DualUnitSalesGuide />
+          </div>
+
           <div className="flex items-center justify-between px-5 py-3 border-b border-gray-100">
             <h2 className="flex items-center gap-2 font-semibold text-gray-800">
               <ShoppingCart className="h-4 w-4 text-blue-500" />

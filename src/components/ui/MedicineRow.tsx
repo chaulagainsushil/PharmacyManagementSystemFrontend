@@ -143,6 +143,12 @@ export function MedicineRow({ row, medicines, onChange, onRemove, onMedicineSele
     });
   };
 
+  // Handle unit selection from dropdown (change selected unit before closing)
+  const selectUnit = (unit: MedicineUnitForPos) => {
+    handleUnitSwitch(unit);
+    setOpen(false);
+  };
+
   const lineTotal = row.quantity * row.unitPrice * (1 - row.discountPercent / 100);
 
   // Highlight search term in dropdown
@@ -258,8 +264,8 @@ export function MedicineRow({ row, medicines, onChange, onRemove, onMedicineSele
                     >
                       {/* Name */}
                       <div className="min-w-0">
-                        <div className="flex flex-wrap items-center gap-1.5 mb-0.5">
-                          <span className={`text-sm font-semibold ${isSel ? 'text-blue-700' : 'text-gray-900'}`}>
+                        <div className="flex flex-wrap items-center gap-1.5 mb-1">
+                          <span className={`text-sm font-bold ${isSel ? 'text-blue-700' : 'text-gray-900'}`}>
                             {hi(m.name)}
                           </span>
                           {m.requiresPrescription && (
@@ -270,14 +276,16 @@ export function MedicineRow({ row, medicines, onChange, onRemove, onMedicineSele
                           )}
                         </div>
                         <div className="flex flex-wrap items-center gap-1">
-                          <span className="text-xs text-gray-500">
-                            {m.genericName ? hi(m.genericName) : <span className="italic text-gray-300">—</span>}
-                          </span>
+                          {m.genericName && (
+                            <span className="text-xs font-medium text-gray-600">
+                              {hi(m.genericName)}
+                            </span>
+                          )}
                           {m.categoryName && (
-                            <span className="rounded bg-gray-100 px-1.5 py-0.5 text-xs text-gray-500">{m.categoryName}</span>
+                            <span className="rounded bg-gray-100 px-1.5 py-0.5 text-xs text-gray-600">{m.categoryName}</span>
                           )}
                           {m.manufacturerName && (
-                            <span className="text-xs text-gray-400">· {m.manufacturerName}</span>
+                            <span className="text-xs text-gray-500">· {m.manufacturerName}</span>
                           )}
                         </div>
                       </div>

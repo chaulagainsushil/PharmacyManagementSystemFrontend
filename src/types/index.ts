@@ -290,10 +290,17 @@ export interface CreateCustomerDto {
 
 // ── Sale ─────────────────────────────────────────────────────────────────────
 export type PaymentMode = 'Cash' | 'Card' | 'Online' | 'Credit';
+export type SaleItemType = 'Medicine' | 'Product';
 
 export interface CreateSaleItemDto {
-  medicineId: number;
-  medicineUnitId: number;
+  itemType?: SaleItemType;  // Defaults to 'Medicine'
+  // Medicine fields (required if itemType = 'Medicine')
+  medicineId?: number;
+  medicineUnitId?: number;
+  // Product fields (required if itemType = 'Product')
+  productId?: number;
+  productUnitId?: number;
+  // Common fields
   quantity: number;
   discountPercent: number;
 }
@@ -308,11 +315,18 @@ export interface CreateSaleRequestDto {
 
 export interface SaleItemResponse {
   saleItemId: number;
-  medicineId: number;
-  medicineName: string;
-  batchId: number;
-  batchNumber: string;
-  medicineUnitId: number;
+  itemType: SaleItemType;
+  // Medicine fields
+  medicineId?: number | null;
+  medicineName?: string | null;
+  batchId?: number | null;
+  batchNumber?: string | null;
+  medicineUnitId?: number | null;
+  // Product fields
+  productId?: number | null;
+  productName?: string | null;
+  productUnitId?: number | null;
+  // Common fields
   uomName: string;
   quantity: number;
   baseQuantityDeducted: number;
@@ -341,9 +355,16 @@ export interface SaleResponse {
 // ── Cart (client-side only) ───────────────────────────────────────────────────
 export interface CartItem {
   id: string;
-  medicineId: number;
-  medicineName: string;
-  medicineUnitId: number;
+  itemType: SaleItemType;
+  // Medicine fields
+  medicineId?: number;
+  medicineName?: string;
+  medicineUnitId?: number;
+  // Product fields
+  productId?: number;
+  productName?: string;
+  productUnitId?: number;
+  // Common fields
   uomName: string;
   quantity: number;
   discountPercent: number;
