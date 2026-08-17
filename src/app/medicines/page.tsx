@@ -20,6 +20,7 @@ import { SimpleMedicineUnitForm } from '@/components/ui/SimpleMedicineUnitForm';
 import { SimpleDualUnitEditor } from '@/components/ui/SimpleDualUnitEditor';
 import { UnitCalculator } from '@/components/ui/UnitCalculator';
 import { AddMedicineForm } from '@/components/ui/AddMedicineForm';
+import { BulkAddMedicineForm } from '@/components/ui/BulkAddMedicineForm';
 import { EditMedicineForm } from '@/components/ui/EditMedicineForm';
 import { medicineService } from '@/services/medicineService';
 import { categoryService } from '@/services/categoryService';
@@ -576,6 +577,7 @@ export default function MedicinesPage() {
   const [showForm, setShowForm] = useState(true);
   const [bulkSaving, setBulkSaving] = useState(false);
   const [bulkResults, setBulkResults] = useState<BulkCreateMedicineItemResult[] | null>(null);
+  const [bulkFormType, setBulkFormType] = useState<'classic' | 'quick'>('quick'); // 'classic' or 'quick'
 
   // Medicine limit modal
   const [limitModalOpen, setLimitModalOpen] = useState(false);
@@ -840,6 +842,7 @@ export default function MedicinesPage() {
   const closeBulk = () => {
     setBulkOpen(false);
     setBulkResults(null);
+    setBulkFormType('quick');
   };
 
   const handleBulkAdd = (row: BulkRow) => {
@@ -1173,61 +1176,99 @@ export default function MedicinesPage() {
       >
         {bulkResults === null ? (
           <div className="space-y-4">
-            {showForm && (
-              <BulkEntryForm
-                categories={categories}
-                manufacturers={manufacturers}
-                uoms={uoms}
-                onAdd={handleBulkAdd}
-              />
-            )}
+            {/* Form Type Tabs */}
+            <div className="flex gap-2 border-b border-gray-200">
+              <button
+                onClick={() => setBulkFormType('quick')}
+                className={`px-4 py-2 text-sm font-medium border-b-2 transition-colors ${
+                  bulkFormType === 'quick'
+                    ? 'border-blue-600 text-blue-600'
+                    : 'border-transparent text-gray-600 hover:text-gray-800'
+                }`}
+              >
+                Quick Table (New)
+              </button>
+              <button
+                onClick={() => setBulkFormType('classic')}
+                className={`px-4 py-2 text-sm font-medium border-b-2 transition-colors ${
+                  bulkFormType === 'classic'
+                    ? 'border-blue-600 text-blue-600'
+                    : 'border-transparent text-gray-600 hover:text-gray-800'
+                }`}
+              >
+                Form Builder (Classic)
+              </button>
+            </div>
 
-            {bulkRows.length > 0 && (
-              <div className="rounded-xl border border-gray-200 bg-gray-50 p-4 space-y-2">
-                <div className="flex items-center justify-between mb-3">
-                  <span className="font-semibold text-gray-700">
-                    {bulkRows.length} medicine(s) ready to add
-                  </span>
-                  <button
-                    onClick={() => setShowForm(!showForm)}
-                    className="text-xs font-semibold text-blue-600 hover:text-blue-700"
-                  >
-                    {showForm ? 'Hide Form' : 'Add More'}
-                  </button>
-                </div>
-                {bulkRows.map((row, idx) => (
-                  <div
-                    key={row._id}
-                    className="flex items-center justify-between bg-white rounded-lg px-3 py-2 text-sm"
-                  >
-                    <span className="font-semibold text-gray-900">{row.name}</span>
+            {/* Quick Form: Table-based */}
+            {bulkFormType === 'quick' ? (
+              <BulkAddMedicineForm
+                onSuccess={() => {
+                  closeBulk();
+                  loadAll();
+                }}
+                onCancel={closeBulk}
+              />
+            ) : (
+              // Classic Form: Form-based
+              <>
+                {showForm && (
+                  <BulkEntryForm
+                    categories={categories}
+                    manufacturers={manufacturers}
+                    uoms={uoms}
+                    onAdd={handleBulkAdd}
+                  />
+                )}
+
+                {bulkRows.length > 0 && (
+                  <div className="rounded-xl border border-gray-200 bg-gray-50 p-4 space-y-2">
+                    <div className="flex items-center justify-between mb-3">
+                      <span className="font-semibold text-gray-700">
+                        {bulkRows.length} medicine(s) ready to add
+                      </span>
+                      <button
+                        onClick={() => setShowForm(!showForm)}
+                        className="text-xs font-semibold text-blue-600 hover:text-blue-700"
+                      >
+                        {showForm ? 'Hide Form' : 'Add More'}
+                      </button>
+                    </div>
+                    {bulkRows.map((row, idx) => (
+                      <div
+                        key={row._id}
+                        className="flex items-center justify-between bg-white rounded-lg px-3 py-2 text-sm"
+                      >
+                        <span className="font-semibold text-gray-900">{row.name}</span>
+                        <button
+                          onClick={() => removeBulkRow(row._id)}
+                          className="text-red-600 hover:text-red-700 font-semibold"
+                        >
+                          Remove
+                        </button>
+                      </div>
+                    ))}
+                  </div>
+                )}
+
+                {bulkRows.length > 0 && (
+                  <div className="flex gap-3 justify-end pt-4">
                     <button
-                      onClick={() => removeBulkRow(row._id)}
-                      className="text-red-600 hover:text-red-700 font-semibold"
+                      onClick={closeBulk}
+                      className="rounded-lg border border-gray-300 px-4 py-2 text-sm font-semibold text-gray-700 hover:bg-gray-50 transition-colors"
                     >
-                      Remove
+                      Cancel
+                    </button>
+                    <button
+                      onClick={submitBulk}
+                      disabled={bulkSaving}
+                      className="rounded-lg bg-green-600 px-4 py-2 text-sm font-semibold text-white hover:bg-green-700 disabled:bg-gray-400 transition-colors"
+                    >
+                      {bulkSaving ? <LoadingSpinner /> : `Create ${bulkRows.length} Medicine(s)`}
                     </button>
                   </div>
-                ))}
-              </div>
-            )}
-
-            {bulkRows.length > 0 && (
-              <div className="flex gap-3 justify-end pt-4">
-                <button
-                  onClick={closeBulk}
-                  className="rounded-lg border border-gray-300 px-4 py-2 text-sm font-semibold text-gray-700 hover:bg-gray-50 transition-colors"
-                >
-                  Cancel
-                </button>
-                <button
-                  onClick={submitBulk}
-                  disabled={bulkSaving}
-                  className="rounded-lg bg-green-600 px-4 py-2 text-sm font-semibold text-white hover:bg-green-700 disabled:bg-gray-400 transition-colors"
-                >
-                  {bulkSaving ? <LoadingSpinner /> : `Create ${bulkRows.length} Medicine(s)`}
-                </button>
-              </div>
+                )}
+              </>
             )}
           </div>
         ) : (
