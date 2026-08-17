@@ -64,6 +64,7 @@ export function EditMedicineForm({ medicineId, onSuccess, onCancel }: Props) {
   });
 
   const [hasUnit2, setHasUnit2] = useState(false);
+  const [updatedAt, setUpdatedAt] = useState<string | undefined>(undefined);
 
   useEffect(() => {
     const loadData = async () => {
@@ -87,6 +88,8 @@ export function EditMedicineForm({ medicineId, onSuccess, onCancel }: Props) {
           setCategoryId(medicine.categoryId?.toString() || '');
           setReorderLevel(medicine.reorderLevel?.toString() || '20');
           setQuantityInBaseUnit(medicine.totalStockInBaseUnit?.toString() || '0');
+          // Store the UpdatedAt timestamp for concurrency control
+          setUpdatedAt(medicine.updatedAt);
         }
 
         if (units && units.length > 0) {
@@ -164,13 +167,19 @@ export function EditMedicineForm({ medicineId, onSuccess, onCancel }: Props) {
         manufacturerId: manufacturerId ? parseInt(manufacturerId) : undefined,
         reorderLevel: parseInt(reorderLevel) || 20,
         unitUpdates,
+        updatedAt, // Include the timestamp for concurrency control
       };
 
       await medicineService.update(medicineId, dto);
       toast.success(`Medicine "${medicineName}" updated successfully!`);
       onSuccess();
     } catch (e: any) {
-      toast.error(e.response?.data?.message ?? 'Failed to update medicine');
+      const message = e.response?.data?.message ?? 'Failed to update medicine';
+      toast.error(message);
+      // If conflict error, reload the form to get fresh data
+      if (message.includes('modified by another user')) {
+        setTimeout(() => window.location.reload(), 1500);
+      }
     } finally {
       setSubmitting(false);
     }
