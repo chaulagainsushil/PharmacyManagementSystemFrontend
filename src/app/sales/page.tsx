@@ -72,6 +72,15 @@ export default function SalesPage() {
   const [selectedCustomer, setSelectedCustomer] = useState<Customer | null>(null);
   const [customerSearch, setCustomerSearch]     = useState('');
   const [customerDropdown, setCustomerDropdown] = useState(false);
+  const [customerLoading, setCustomerLoading]   = useState(false);
+
+  // Medicine quick select
+  const [medicineSearch, setMedicineSearch]     = useState('');
+  const [medicineList, setMedicineList]         = useState<Medicine[]>([]);
+  const [medicineDropdown, setMedicineDropdown] = useState(false);
+  const [medicineLoading, setMedicineLoading]   = useState(false);
+  const medicineInputRef = useRef<HTMLInputElement>(null);
+  const medicineDropdownRef = useRef<HTMLDivElement>(null);
 
   // Prescription upload
   const [prescriptionFile, setPrescriptionFile]       = useState<File | null>(null);
@@ -91,6 +100,55 @@ export default function SalesPage() {
   }, []);
 
   useEffect(() => { load().finally(() => setLoading(false)); }, [load]);
+
+  // Close medicine dropdown on outside click
+  useEffect(() => {
+    const handleClickOutside = (e: MouseEvent) => {
+      if (medicineDropdownRef.current && !medicineDropdownRef.current.contains(e.target as Node) &&
+          medicineInputRef.current && !medicineInputRef.current.contains(e.target as Node)) {
+        setMedicineDropdown(false);
+      }
+    };
+    if (medicineDropdown) {
+      document.addEventListener('mousedown', handleClickOutside);
+      return () => document.removeEventListener('mousedown', handleClickOutside);
+    }
+  }, [medicineDropdown]);
+
+  // Medicine search handler
+  const handleMedicineSearch = useCallback(async (query: string) => {
+    setMedicineSearch(query);
+    if (!query.trim()) {
+      setMedicineList([]);
+      setMedicineDropdown(false);
+      return;
+    }
+    setMedicineLoading(true);
+    try {
+      const results = await medicineService.search(query.trim());
+      setMedicineList(results.filter(m => m.isActive));
+      setMedicineDropdown(true);
+    } catch (e) {
+      setMedicineList([]);
+    } finally {
+      setMedicineLoading(false);
+    }
+  }, []);
+
+  // Handle medicine selection from dropdown
+  const handleMedicineSelect = (medicine: Medicine) => {
+    registerMedicine(medicine);
+    // Add a new row with the selected medicine
+    const newRow = emptyRow();
+    newRow.medicineId = medicine.medicineId;
+    newRow.medicineName = medicine.name;
+    setRows((prev) => [...prev, newRow]);
+    setMedicineSearch('');
+    setMedicineDropdown(false);
+    setMedicineList([]);
+    // Focus back on input
+    medicineInputRef.current?.focus();
+  };
 
   const registerMedicine = useCallback((med: Medicine) => {
     setPickedMedicines((prev) => {
@@ -237,6 +295,58 @@ export default function SalesPage() {
   return (
     <AppLayout title="Sell Medicine">
       <div className="space-y-5">
+
+        {/* ── Quick Medicine Select Dropdown ───────────────────────────────── */}
+        <div className="rounded-2xl border border-gray-100 bg-white p-4 shadow-sm">
+          <label className="mb-2 flex items-center gap-2 text-sm font-semibold text-gray-700">
+            <ShoppingCart className="h-4 w-4 text-blue-500" />
+            Quick Add Medicine
+            <span className="ml-1 text-xs font-normal text-gray-400">(search & select to add to cart)</span>
+          </label>
+          <div className="relative">
+            <Search className="absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-gray-400 pointer-events-none" />
+            <input
+              ref={medicineInputRef}
+              type="text"
+              value={medicineSearch}
+              onChange={(e) => handleMedicineSearch(e.target.value)}
+              onFocus={() => setMedicineDropdown(medicineSearch.length > 0)}
+              placeholder="Search medicine by name (e.g., Paracetamol)…"
+              className="w-full rounded-xl border border-gray-200 py-2.5 pl-9 pr-4 text-sm outline-none focus:border-blue-500 focus:ring-2 focus:ring-blue-100"
+            />
+            {medicineLoading && (
+              <div className="absolute right-3 top-1/2 -translate-y-1/2">
+                <LoadingSpinner className="h-4 w-4 text-blue-500" />
+              </div>
+            )}
+            {medicineDropdown && medicineSearch.length > 0 && (
+              <div 
+                ref={medicineDropdownRef}
+                className="absolute z-20 mt-1 w-full max-h-64 overflow-y-auto rounded-xl border border-gray-100 bg-white shadow-lg"
+              >
+                {medicineList.length === 0 && !medicineLoading && (
+                  <p className="px-4 py-3 text-sm text-gray-400">No medicines found. Try another search.</p>
+                )}
+                {medicineList.map((medicine) => (
+                  <button
+                    key={medicine.medicineId}
+                    type="button"
+                    onClick={() => handleMedicineSelect(medicine)}
+                    className="flex w-full items-center justify-between px-4 py-2.5 text-sm hover:bg-blue-50 transition-colors border-b border-gray-50 last:border-b-0"
+                  >
+                    <div className="text-left flex-1">
+                      <p className="font-medium text-gray-900">{medicine.name}</p>
+                      {medicine.genericName && (
+                        <p className="text-xs text-gray-500">Generic: {medicine.genericName}</p>
+                      )}
+                    </div>
+                    <Plus className="h-4 w-4 text-blue-500 flex-shrink-0 ml-2" />
+                  </button>
+                ))}
+              </div>
+            )}
+          </div>
+        </div>
 
         {/* ── Customer Picker ──────────────────────────────────────────────── */}
         <div className="rounded-2xl border border-gray-100 bg-white p-4 shadow-sm">
